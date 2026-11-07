@@ -643,6 +643,8 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 
 </style>
 <link rel="stylesheet" href="./styles.css?v=20261107-3">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -801,8 +803,131 @@ hasArtifact: true
 ]
 };
 let state = structuredClone(defaultState);
+let threadDatabase = null;
+let threadStorageReady = false;
+let threadSaveTimer = null;
+let threadWriteQueue = Promise.resolve();
+const THREAD_DB_NAME = 'openclaude-thread-store';
+const THREAD_DB_VERSION = 1;
+
+function openThreadDatabase() {
+return new Promise((resolve, reject) => {
+if (!('indexedDB' in window)) { reject(new Error('IndexedDB is unavailable')); return; }
+const request = indexedDB.open(THREAD_DB_NAME, THREAD_DB_VERSION);
+request.onupgradeneeded = () => {
+const db = request.result;
+if (!db.objectStoreNames.contains('threads')) {
+const store = db.createObjectStore('threads', { keyPath: 'id' });
+store.createIndex('position', 'position', { unique: false });
+}
+};
+request.onsuccess = () => {
+const db = request.result;
+db.onversionchange = () => db.close();
+resolve(db);
+};
+request.onerror = () => reject(request.error || new Error('Could not open local conversation storage'));
+request.onblocked = () => reject(new Error('Conversation storage is busy in another tab. Close other OpenClaude tabs and refresh.'));
+});
+}
+
+function readThreadRecords(db) {
+return new Promise((resolve, reject) => {
+const tx = db.transaction('threads', 'readonly');
+const request = tx.objectStore('threads').getAll();
+request.onsuccess = () => resolve(request.result || []);
+request.onerror = () => reject(request.error || new Error('Could not read saved conversations'));
+tx.onabort = () => reject(tx.error || new Error('Conversation storage read was interrupted'));
+});
+}
+
+function writeThreadSnapshot(db, threads) {
+return new Promise((resolve, reject) => {
+const tx = db.transaction('threads', 'readwrite');
+const store = tx.objectStore('threads');
+store.clear();
+threads.forEach((thread, position) => {
+if (thread && thread.id) store.put({ id: thread.id, position, thread });
+});
+tx.oncomplete = resolve;
+tx.onerror = () => reject(tx.error || new Error('Could not save conversations'));
+tx.onabort = () => reject(tx.error || new Error('Conversation save was interrupted'));
+});
+}
+
+function writeWorkspaceMetadata() {
+const safe = { ...state };
+delete safe.threads;
+safe.threadStorageVersion = THREAD_DB_VERSION;
+localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+}
+
+function scheduleThreadSave() {
+if (!threadStorageReady || !threadDatabase) return;
+clearTimeout(threadSaveTimer);
+threadSaveTimer = setTimeout(() => {
+threadSaveTimer = null;
+const snapshot = state.threads.map(thread => ({ ...thread }));
+threadWriteQueue = threadWriteQueue.then(() => writeThreadSnapshot(threadDatabase, snapshot))
+.then(() => writeWorkspaceMetadata())
+.catch(error => {
+console.warn('OpenClaude IndexedDB save failed; returning to browser storage:', error);
+threadStorageReady = false;
+try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (fallbackError) {
+console.warn('OpenClaude browser storage fallback also failed:', fallbackError);
+}
+});
+}, 650);
+}
+
+function flushThreadSave() {
+if (!threadStorageReady || !threadDatabase) return;
+if (threadSaveTimer) {
+clearTimeout(threadSaveTimer);
+threadSaveTimer = null;
+const snapshot = state.threads.map(thread => ({ ...thread }));
+threadWriteQueue = threadWriteQueue.then(() => writeThreadSnapshot(threadDatabase, snapshot))
+.then(() => writeWorkspaceMetadata())
+.catch(error => console.warn('OpenClaude could not finish its last conversation save:', error));
+}
+}
+
+async function initializeThreadStorage() {
+try {
+const db = await openThreadDatabase();
+const records = await readThreadRecords(db);
+const hasIndexedDbMarker = state.threadStorageVersion === THREAD_DB_VERSION;
+threadDatabase = db;
+if (records.length || hasIndexedDbMarker) {
+state.threads = records.sort((a, b) => a.position - b.position).map(record => record.thread).filter(Boolean);
+} else if (state.threads.length) {
+await writeThreadSnapshot(db, state.threads);
+}
+threadStorageReady = true;
+if (!state.threads.some(thread => thread.id === state.activeThreadId)) {
+state.activeThreadId = state.threads[0]?.id || null;
+}
+const requestedChat = (location.hash.match(/(?:^#|&)chat=([^&]+)/) || [])[1];
+if (requestedChat) {
+const target = state.threads.find(thread => thread.id === decodeURIComponent(requestedChat));
+if (target) state.activeThreadId = target.id;
+}
+writeWorkspaceMetadata();
+renderSidebar();
+renderChat();
+} catch (error) {
+threadStorageReady = false;
+console.warn('OpenClaude is using browser storage because IndexedDB could not start:', error);
+}
+}
+
 function saveState() {
-try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { console.warn('OpenClaude could not save local settings:', error); }
+if (threadStorageReady) {
+scheduleThreadSave();
+return;
+}
+try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+catch (error) { console.warn('OpenClaude could not save local settings:', error); }
 }
 let selectedAttachments = [];
 function renderAttachmentPreview() {
@@ -887,7 +1012,8 @@ while (index < lines.length && !/^\s*\x60{3}\s*$/.test(lines[index])) {
 code.push(lines[index]);
 index++;
 }
-output.push('<pre><code data-language="' + escapeHTML(language ? language[0] : 'code') + '">' + escapeHTML(code.join('\n')) + '</code></pre>');
+const lang = language ? language[0].toLowerCase() : 'plaintext';
+output.push('<pre><code class="language-' + escapeHTML(lang) + '" data-language="' + escapeHTML(lang) + '">' + escapeHTML(code.join('\n')) + '</code></pre>');
 index++;
 continue;
 }
@@ -1122,9 +1248,23 @@ container.querySelectorAll('.msg-assistant pre').forEach(pre => {
   });
   actions.append(button, download); toolbar.append(label, actions); pre.appendChild(toolbar);
 });
+highlightCodeBlocks(container);
 const scroll = document.getElementById('chatScroll');
 scroll.scrollTop = scroll.scrollHeight;
 }
+
+function highlightCodeBlocks(root) {
+const highlighter = window.hljs;
+if (!highlighter || !root) return;
+root.querySelectorAll('.msg-assistant pre code[data-language]').forEach(code => {
+if (code.dataset.highlighted === 'true') return;
+const language = (code.dataset.language || '').toLowerCase();
+if (language && highlighter.getLanguage(language)) code.classList.add('language-' + language);
+try { highlighter.highlightElement(code); code.dataset.highlighted = 'true'; }
+catch (error) { console.warn('OpenClaude could not highlight this code block:', error); }
+});
+}
+
 function extractArtifactFromReply(markdown) {
   const blocks = [];
   const fence = String.fromCharCode(96, 96, 96);
@@ -1203,7 +1343,7 @@ if (!saved || typeof saved !== 'object') return structuredClone(defaultState);
 return {
 ...structuredClone(defaultState),
 ...saved,
-threads: Array.isArray(saved.threads) ? saved.threads : structuredClone(defaultState.threads),
+threads: Array.isArray(saved.threads) ? saved.threads : (saved.threadStorageVersion === THREAD_DB_VERSION ? [] : structuredClone(defaultState.threads)),
 activeArtifact: saved.activeArtifact || structuredClone(defaultState.activeArtifact)
 };
 } catch (error) {
@@ -1486,6 +1626,8 @@ let replyText = '';
 let generatedArtifact = false;
 let streamingAssistant = null;
 let artifactOpened = false;
+let latestArtifactPreview = null;
+let artifactPreviewTimer = null;
 let stopped = false;
 let isError = false;
 activeRequest = new AbortController();
@@ -1529,14 +1671,19 @@ const artifact = extractArtifactFromReply(partial);
 if (artifact) {
   generatedArtifact = true;
   streamingAssistant.hasArtifact = true;
+  latestArtifactPreview = artifact;
   state.activeArtifact = artifact;
   if (!artifactOpened && state.activeThreadId === thread.id) {
     openArtifactPane();
     artifactOpened = true;
   } else if (artifactOpened) {
-    document.getElementById('artifactTitle').textContent = artifact.title;
-    document.getElementById('artifactFrame').srcdoc = artifact.code;
-    document.getElementById('artifactCode').textContent = artifact.code;
+    clearTimeout(artifactPreviewTimer);
+    artifactPreviewTimer = setTimeout(() => {
+      if (state.activeThreadId !== thread.id || !latestArtifactPreview) return;
+      document.getElementById('artifactTitle').textContent = latestArtifactPreview.title;
+      document.getElementById('artifactFrame').srcdoc = latestArtifactPreview.code;
+      document.getElementById('artifactCode').textContent = latestArtifactPreview.code;
+    }, 450);
   }
 }
 saveState();
@@ -1571,6 +1718,7 @@ replyText = `**Couldn't get a reply**\n\n${error.message || 'Something went wron
 statusEl.textContent = 'Engine: Connection failed';
 }
 } finally {
+clearTimeout(artifactPreviewTimer);
 activeRequest = null;
 sendBtn.disabled = false;
 sendBtn.textContent = '↑'; sendBtn.title = 'Send message'; sendBtn.setAttribute('aria-label','Send message');
@@ -1782,6 +1930,9 @@ document.getElementById('engineStatus').textContent = 'Engine: Cloudflare Worker
 applyTheme();
 renderSidebar();
 renderChat();
+window.addEventListener('pagehide', flushThreadSave);
+window.addEventListener('load', () => highlightCodeBlocks(document.getElementById('chatContainer')));
+void initializeThreadStorage();
 </script>
 </body>
 </html>
