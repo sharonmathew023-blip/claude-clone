@@ -1170,7 +1170,7 @@ lastError.message = `Google's Gemini service is not answering right now (tried $
 throw lastError;
 }
 async function inspectPublicWebsite(url, signal) {
-const endpoint = normalizeWorkerUrl(state.workerUrl).replace(/\\/chat\\/completions\\/?$/, '/browse');
+const endpoint = normalizeWorkerUrl(state.workerUrl).replace(/\/chat\/completions\/?$/, '/browse');
 const headers = { 'Content-Type': 'application/json' };
 if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
 const response = await fetch(endpoint, { method:'POST', headers, body:JSON.stringify({url}), signal });
