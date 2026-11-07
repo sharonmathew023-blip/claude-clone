@@ -482,6 +482,29 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
 
 
 .attachment-row{display:flex;align-items:center;margin:0 0 8px}.attach-btn{padding:7px 11px;border-radius:9px;font-size:.78rem}.attachment-preview{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 9px}.attachment-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:6px 9px;border:1px solid var(--border-hairline);background:var(--bg-surface);border-radius:9px;color:var(--text-secondary);font-size:.75rem}.attachment-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}.attachment-chip button{border:0;background:transparent;color:var(--text-secondary);font-size:1rem;padding:0 2px}.skill-list{display:grid;gap:7px;margin-top:10px}.skill-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-hairline);border-radius:10px}.skill-toggle{display:flex;align-items:center;gap:8px;font-size:.8rem;min-width:0}.skill-toggle span{overflow-wrap:anywhere}.skill-row .footer-btn{padding:5px 8px;font-size:.72rem}
+ 
+/* Dedicated image-generation workspace */
+.image-mode-toggle{border:1px solid var(--border-hairline);background:var(--bg-surface);color:var(--text-primary);border-radius:var(--radius-pill);padding:8px 12px;font:500 .8rem var(--font-sans);cursor:pointer;white-space:nowrap}
+.image-mode-toggle.active{background:var(--accent-terracotta);border-color:var(--accent-terracotta);color:#fff}
+.image-workspace{display:none;flex:1;min-height:0;overflow:auto;padding:24px 16px 32px}
+.main-view.image-mode .chat-scroll{display:none}
+.main-view.image-mode .image-workspace{display:block}
+.image-workspace-inner{max-width:820px;margin:0 auto}
+.image-workspace h2{font:500 2rem var(--font-serif);margin:10px 0 8px}
+.image-workspace-sub{color:var(--text-secondary);font-size:.88rem;margin-bottom:20px}
+.image-result-card{margin-top:20px;padding:14px;border:1px solid var(--border-hairline);border-radius:var(--radius-lg);background:var(--bg-surface);display:none}
+.image-result-card img{display:block;width:100%;height:auto;max-height:70dvh;object-fit:contain;border-radius:10px;background:var(--bg-elevated)}
+.image-result-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.image-result-note{color:var(--text-secondary);font-size:.8rem;margin-top:10px;white-space:pre-wrap}
+.image-controls{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0}
+.main-view.image-mode .image-controls{display:flex}
+.main-view.image-mode .attachment-row,.main-view.image-mode #attachmentPreview{display:none}
+.main-view.image-mode #sendBtn{display:none}
+.image-controls label{font-size:.76rem;color:var(--text-secondary)}
+.image-controls select{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border-hairline);border-radius:8px;padding:8px;font: .8rem var(--font-sans)}
+.image-generate-btn{border:0;border-radius:var(--radius-pill);background:var(--accent-terracotta);color:#fff;padding:10px 16px;font:600 .84rem var(--font-sans);cursor:pointer}
+.image-generate-btn:disabled{opacity:.55;cursor:wait}
+@media(max-width:600px){.image-workspace{padding:18px 12px}.image-workspace h2{font-size:1.65rem}.image-controls{gap:6px}.image-controls select{max-width:120px}}
 </style>
 </head>
 <body>
@@ -519,10 +542,26 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
 <option value="cloudflare-worker">Cloudflare Worker (Gemini)</option>
 <option value="offline-synth">Offline Sandbox (No AI connection)</option>
 </select>
+<button class="image-mode-toggle" id="imageModeToggleBtn" type="button" aria-pressed="false">✦ Image mode</button>
 <button class="icon-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
 </header>
 <div class="chat-scroll" id="chatScroll">
 <div class="chat-container" id="chatContainer"></div>
+</div>
+<div class="image-workspace" id="imageWorkspace">
+  <div class="image-workspace-inner">
+    <div class="hero-spark">✦</div>
+    <h2>Create an image</h2>
+    <p class="image-workspace-sub">Powered by Nano Banana 2 · Gemini 3.1 Flash Image</p>
+    <div class="image-result-card" id="imageResultCard">
+      <img id="generatedImage" alt="AI-generated image" />
+      <div class="image-result-note" id="imageResultNote"></div>
+      <div class="image-result-actions">
+        <a class="send-btn" id="downloadGeneratedImage" download="openclaude-image.png" style="text-decoration:none;display:inline-flex;align-items:center">↓ Save image</a>
+        <button class="footer-btn" type="button" id="generateAnotherBtn">↻ Generate another</button>
+      </div>
+    </div>
+  </div>
 </div>
 <div class="composer-wrap">
 <div class="composer-box">
@@ -533,6 +572,15 @@ enterkeyhint="send"
 placeholder="Ask anything, write code, or generate an interactive HTML artifact..."
 ></textarea>
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn">＋ Attach files</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
+<div class="image-controls" id="imageControls">
+<label for="imageAspectRatio">Ratio</label>
+<select id="imageAspectRatio">
+<option value="1:1">1:1 Square</option><option value="16:9">16:9 Landscape</option><option value="9:16">9:16 Portrait</option><option value="4:3">4:3 Classic</option><option value="3:4">3:4 Portrait</option><option value="3:2">3:2 Photo</option><option value="2:3">2:3 Vertical</option><option value="21:9">21:9 Wide</option>
+</select>
+<label for="imageResolution">Quality</label>
+<select id="imageResolution"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></select>
+<button class="image-generate-btn" id="generateImageBtn" type="button">✦ Generate image</button>
+</div>
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
 <button class="send-btn" id="sendBtn">Send ↑</button>
@@ -639,6 +687,8 @@ function saveState() {
 try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { console.warn('OpenClaude could not save local settings:', error); }
 }
 let selectedAttachments = [];
+let imageModeActive = false;
+let lastImagePrompt = '';
 function renderAttachmentPreview() {
 const box = document.getElementById('attachmentPreview');
 if (!box) return;
@@ -1179,6 +1229,79 @@ if (!response.ok || !data.ok) throw new Error(data.error?.message || data.messag
 return data;
 }
 
+function setImageMode(enabled) {
+imageModeActive = Boolean(enabled);
+const main = document.querySelector('.main-view');
+const toggle = document.getElementById('imageModeToggleBtn');
+main.classList.toggle('image-mode', imageModeActive);
+toggle.classList.toggle('active', imageModeActive);
+toggle.setAttribute('aria-pressed', String(imageModeActive));
+toggle.textContent = imageModeActive ? '← Back to chat' : '✦ Image mode';
+const prompt = document.getElementById('promptInput');
+prompt.placeholder = imageModeActive
+? 'Describe the image you want to create...'
+: 'Ask anything, write code, or generate an interactive HTML artifact...';
+document.getElementById('engineStatus').textContent = imageModeActive
+? 'Engine: Nano Banana 2 ready'
+: 'Engine: Cloudflare Worker Ready';
+}
+async function generateImage() {
+const promptEl = document.getElementById('promptInput');
+const prompt = promptEl.value.trim() || lastImagePrompt;
+if (!prompt) { promptEl.focus(); document.getElementById('engineStatus').textContent = 'Enter an image prompt first.'; return; }
+const button = document.getElementById('generateImageBtn');
+const status = document.getElementById('engineStatus');
+const card = document.getElementById('imageResultCard');
+button.disabled = true;
+button.textContent = 'Generating…';
+status.textContent = 'Engine: Creating your image…';
+card.style.display = 'none';
+try {
+const endpoint = normalizeWorkerUrl(state.workerUrl).replace(/\/chat\/completions\/?$/, '/images/generate');
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 110000);
+let response;
+try {
+response = await fetch(endpoint, {
+method:'POST',
+headers:workerHeaders(),
+body:JSON.stringify({
+prompt,
+aspectRatio:document.getElementById('imageAspectRatio').value,
+imageSize:document.getElementById('imageResolution').value
+}),
+signal:controller.signal
+});
+} finally { clearTimeout(timer); }
+const data = await response.json().catch(() => ({}));
+if (!response.ok || !data.ok || !data.imageData) {
+const message = data.error?.message || data.message || 'The image service returned no image.';
+throw new Error(message);
+}
+const mime = data.mimeType || 'image/png';
+const dataUrl = 'data:' + mime + ';base64,' + data.imageData;
+const image = document.getElementById('generatedImage');
+image.src = dataUrl;
+const extension = mime.split('/')[1] || 'png';
+const download = document.getElementById('downloadGeneratedImage');
+download.href = dataUrl;
+download.download = 'openclaude-image.' + extension.replace('jpeg','jpg');
+document.getElementById('imageResultNote').textContent = data.text || ('Generated with Nano Banana 2 · ' + data.aspectRatio + ' · ' + data.imageSize);
+card.style.display = 'block';
+lastImagePrompt = prompt;
+promptEl.value = prompt;
+status.textContent = 'Engine: Image generated';
+} catch (error) {
+status.textContent = 'Engine: Image generation failed';
+card.style.display = 'block';
+document.getElementById('imageResultNote').textContent = error.name === 'AbortError'
+? 'Generation timed out. Try again with a simpler prompt.'
+: error.message || 'Something went wrong.';
+} finally {
+button.disabled = false;
+button.textContent = '✦ Generate image';
+}
+}
 async function handleSend(event) {
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
@@ -1290,6 +1413,9 @@ saveState();
 renderChat();
 if (generatedArtifact) openArtifactPane();
 }
+document.getElementById('imageModeToggleBtn').addEventListener('click', () => setImageMode(!imageModeActive));
+document.getElementById('generateImageBtn').addEventListener('click', generateImage);
+document.getElementById('generateAnotherBtn').addEventListener('click', generateImage);
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
 function usesTouchKeyboard() {
