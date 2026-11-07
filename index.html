@@ -629,15 +629,118 @@ function applyTheme() {
 document.documentElement.setAttribute('data-theme', state.theme);
 document.getElementById('themeLabel').textContent = state.theme === 'dark' ? 'Dark' : 'Light';
 }
-function formatMarkdown(text) {
-let safe = text
+function formatMarkdown(markdown) {
+const escapeHTML = value => String(value)
 .replace(/&/g, '&amp;')
 .replace(/</g, '&lt;')
-.replace(/>/g, '&gt;');
-safe = safe.replace(/```([\w.+-]*)\n?([\s\S]*?)```/g, (_, lang, code) => '<pre><code data-language="' + (lang || 'code') + '">' + code.replace(/\n$/, '') + '</code></pre>');
-safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-return safe.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join('');
+.replace(/>/g, '&gt;')
+.replace(/"/g, '&quot;')
+.replace(/'/g, '&#39;');
+
+function inlineMarkdown(value) {
+let text = escapeHTML(value);
+const codeTokens = [];
+text = text.replace(/\x60([^\x60]+)\x60/g, (_, code) => {
+const token = 'OPENCLAUDECODE' + codeTokens.length + 'TOKEN';
+codeTokens.push('<code>' + code + '</code>');
+return token;
+});
+text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+text = text.replace(/~~(.+?)~~/g, '<del>$1</del>');
+text = text.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+text = text.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
+codeTokens.forEach((html, index) => {
+text = text.replace('OPENCLAUDECODE' + index + 'TOKEN', html);
+});
+return text;
+}
+
+const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
+const output = [];
+let paragraph = [];
+let index = 0;
+
+function flushParagraph() {
+if (!paragraph.length) return;
+output.push('<p>' + paragraph.map(inlineMarkdown).join('<br>') + '</p>');
+paragraph = [];
+}
+
+while (index < lines.length) {
+const line = lines[index];
+
+if (/^\s{0,3}\x60{3}/.test(line)) {
+flushParagraph();
+const language = line.replace(/^\s*\x60{3}/, '').trim().match(/^[\w.+-]+/);
+const code = [];
+index++;
+while (index < lines.length && !/^\s*\x60{3}\s*$/.test(lines[index])) {
+code.push(lines[index]);
+index++;
+}
+output.push('<pre><code data-language="' + escapeHTML(language ? language[0] : 'code') + '">' + escapeHTML(code.join('\n')) + '</code></pre>');
+index++;
+continue;
+}
+
+const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+if (heading) {
+flushParagraph();
+const level = heading[1].length;
+output.push('<h' + level + '>' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+index++;
+continue;
+}
+
+if (/^\s{0,3}(---+|___+|\*\*\*+)\s*$/.test(line)) {
+flushParagraph();
+output.push('<hr>');
+index++;
+continue;
+}
+
+if (/^\s{0,3}>\s?/.test(line)) {
+flushParagraph();
+const quote = [];
+while (index < lines.length && /^\s{0,3}>\s?/.test(lines[index])) {
+quote.push(lines[index].replace(/^\s{0,3}>\s?/, ''));
+index++;
+}
+output.push('<blockquote>' + quote.map(inlineMarkdown).join('<br>') + '</blockquote>');
+continue;
+}
+
+const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+if (unordered || ordered) {
+flushParagraph();
+const isOrdered = !!ordered;
+const tag = isOrdered ? 'ol' : 'ul';
+const items = [];
+while (index < lines.length) {
+const match = lines[index].match(isOrdered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/);
+if (!match) break;
+items.push('<li>' + inlineMarkdown(match[1]) + '</li>');
+index++;
+}
+output.push('<' + tag + '>' + items.join('') + '</' + tag + '>');
+continue;
+}
+
+if (!line.trim()) {
+flushParagraph();
+index++;
+continue;
+}
+
+paragraph.push(line);
+index++;
+}
+
+flushParagraph();
+return output.join('\n');
 }
 function renderSidebar() {
 const list = document.getElementById('threadList');
