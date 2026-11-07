@@ -6,8 +6,10 @@
 // Optional settings (Worker > Settings > Variables and Secrets):
 //   ACCESS_TOKEN     secret. When set, callers must send "Authorization: Bearer <token>"
 //   ALLOWED_ORIGINS  comma-separated site origins. When unset, any site may call
-//   FALLBACK_MODEL   model to try when the main model keeps failing with 429/5xx
 //   DEFAULT_MODEL    model used when a request does not name one
+//   FALLBACK_MODEL   first backup model, tried when the requested one is busy
+//   FALLBACK_MODELS  comma-separated backups (default gemini-3.6-flash,
+//                    gemini-flash-lite-latest)
 //
 // Routes:
 //   GET  /health            -> { ok, hasKey }
@@ -15,14 +17,17 @@
 //   POST /chat/completions  -> streams the reply
 // Errors are JSON: { error: { message, type, code } } with a real HTTP status.
 
-const DEFAULT_MODEL = "gemini-3.8-flash";
+const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a time
+const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_MESSAGES = 200;
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
-const HEADERS_TIMEOUT_MS = 25_000; // wait for the first response headers, not for the whole stream
-const SAME_MODEL_ATTEMPTS = 2; // one quick retry here; the browser shows the longer retries
+const MODEL_GONE_STATUS = 404; // retired model: move on to the next one, do not retry it
+const HEADERS_TIMEOUT_MS = 20_000; // wait for the first response headers, not for the whole stream
+const ATTEMPTS_PER_MODEL = 2;
+const TOTAL_BUDGET_MS = 45_000; // keep the answer inside the browser's 60s request timeout
 
 export default {
   async fetch(request, env) {
@@ -45,7 +50,7 @@ export default {
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
-      let ids = [env.DEFAULT_MODEL || DEFAULT_MODEL, env.FALLBACK_MODEL].filter(Boolean);
+      let ids = buildModelChain(String(env.DEFAULT_MODEL || DEFAULT_MODEL), env);
       if (env.GEMINI_API_KEY) {
         try { // ask Google which models your key can really use right now
           const res = await fetch(`${GEMINI_BASE}/models?pageSize=100`, { headers: { "x-goog-api-key": env.GEMINI_API_KEY }, signal: AbortSignal.timeout(8000) });
@@ -86,11 +91,7 @@ export default {
     const geminiBody = buildGeminiBody(input);
     if (!geminiBody.contents.length) return fail(400, "No user or assistant messages were provided.");
 
-    const fallback = String(env.FALLBACK_MODEL || "").replace(/^models\//, "");
-    const models = Array(SAME_MODEL_ATTEMPTS).fill(model);
-    if (fallback && fallback !== model && MODEL_RE.test(fallback)) models.push(fallback);
-
-    const result = await callGemini(models, JSON.stringify(geminiBody), env.GEMINI_API_KEY);
+    const result = await callGemini(buildModelChain(model, env), JSON.stringify(geminiBody), env.GEMINI_API_KEY);
     if (result.error) {
       const extra = result.error.retryAfter ? { "Retry-After": result.error.retryAfter } : undefined;
       return fail(result.error.status, result.error.message, extra);
@@ -143,43 +144,91 @@ function buildGeminiBody(input) {
   return body;
 }
 
-/* ---------- Gemini call with retries ---------- */
+/* ---------- model chain ---------- */
 
-async function callGemini(models, body, apiKey) {
+// The requested model first, then the backups. Duplicates and bad names are dropped,
+// so one saturated model can no longer take the whole app down.
+function buildModelChain(requested, env) {
+  const chain = [];
+  const add = (value) => {
+    const name = String(value || "").trim().replace(/^models\//, "");
+    if (name && MODEL_RE.test(name) && !chain.includes(name)) chain.push(name);
+  };
+  add(requested);
+  add(env.FALLBACK_MODEL);
+  for (const name of String(env.FALLBACK_MODELS || DEFAULT_FALLBACKS).split(",")) add(name);
+  return chain;
+}
+
+/* ---------- Gemini call with retries and model fallback ---------- */
+
+// One attempt against one model. Resolves to { res, model } or a plain error record.
+async function callModel(model, body, apiKey) {
+  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), HEADERS_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body,
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer); // headers arrived: the stream itself runs without a cutoff
+    if (res.ok) return { res, model };
+    const text = await res.text().catch(() => "");
+    return {
+      status: res.status,
+      message: extractMessage(text) || `Gemini API returned HTTP ${res.status}.`,
+      retryAfter: res.headers.get("Retry-After") || undefined,
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    return err && err.name === "AbortError"
+      ? { status: 504, message: "Gemini did not respond in time.", timedOut: true }
+      : { status: 502, message: "Could not reach the Gemini API." };
+  }
+}
+
+async function callGemini(chain, body, apiKey) {
+  const started = Date.now();
+  const tried = [];
   let last = { status: 502, message: "Could not reach the Gemini API." };
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), HEADERS_TIMEOUT_MS);
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body,
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer); // headers arrived: the stream itself runs without a cutoff
-      if (res.ok) return { res, model };
-      const text = await res.text().catch(() => "");
-      last = {
-        status: res.status,
-        message: extractMessage(text) || `Gemini API returned HTTP ${res.status}.`,
-        retryAfter: res.headers.get("Retry-After") || undefined,
-      };
-      if (!RETRY_STATUS.has(res.status)) return { error: last }; // bad key, bad model, bad request: retrying will not help
-    } catch (err) {
-      clearTimeout(timer);
-      last = err && err.name === "AbortError"
-        ? { status: 504, message: "Gemini did not respond in time." }
-        : { status: 502, message: "Could not reach the Gemini API." };
-    }
-    if (i < models.length - 1) {
-      const ra = Number(last.retryAfter);
-      await sleep(ra > 0 && ra <= 3 ? ra * 1000 : 400 * (i + 1) + Math.random() * 300);
+
+  for (const model of chain) {
+    tried.push(model);
+    for (let attempt = 1; attempt <= ATTEMPTS_PER_MODEL; attempt++) {
+      if (Date.now() - started > TOTAL_BUDGET_MS) return { error: busyError(tried, last) };
+
+      const outcome = await callModel(model, body, apiKey);
+      if (outcome.res) return outcome; // this model answered
+      last = outcome;
+
+      // A bad key or a bad request will not be fixed by trying another model.
+      if (!RETRY_STATUS.has(outcome.status) && outcome.status !== MODEL_GONE_STATUS) return { error: outcome };
+      // A retired model or one that just stalled will not improve on a second try.
+      if (outcome.status === MODEL_GONE_STATUS || outcome.timedOut) break;
+      // Each model has its own quota, so a rate limit is better spent on the next model.
+      if (outcome.status === 429) break;
+
+      if (attempt < ATTEMPTS_PER_MODEL) {
+        const ra = Number(outcome.retryAfter);
+        await sleep(ra > 0 && ra <= 2 ? ra * 1000 : 350 * attempt + Math.random() * 250);
+      }
     }
   }
-  return { error: last };
+  return { error: busyError(tried, last) };
+}
+
+// Every model in the chain is busy: say that once, instead of echoing one model's error.
+function busyError(tried, last) {
+  const status = last && last.status === 429 ? 429 : last && last.status === 504 ? 504 : 503;
+  const reason = (last && last.message) || "The model is busy.";
+  return {
+    status,
+    message: `Google's models are busy right now, so this Worker could not get an answer (tried ${tried.join(", ")}). Last error: ${reason} Please try again in a moment.`,
+    retryAfter: (last && last.retryAfter) || "10",
+  };
 }
 
 function extractMessage(text) {
