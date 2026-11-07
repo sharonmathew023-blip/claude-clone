@@ -58,7 +58,15 @@ export default {
         const body = await res.text();
         let data = {};
         try { data = body ? JSON.parse(body) : {}; } catch { data = { message: body.slice(0, 300) }; }
-        if (!res.ok) throw new Error(data.message || data.error || `Composio returned HTTP ${res.status}.`);
+        if (!res.ok) {
+          const detail = data.message
+            || (typeof data.error === "string" ? data.error : data.error ? JSON.stringify(data.error) : "")
+            || data.detail
+            || data.errors && JSON.stringify(data.errors)
+            || body.slice(0, 500)
+            || `Composio returned HTTP ${res.status}.`;
+          throw new Error(`Composio HTTP ${res.status}: ${detail}`);
+        }
         return data;
       };
 
