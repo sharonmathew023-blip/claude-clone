@@ -1223,7 +1223,7 @@ if (browserSkill && urlMatch) {
 statusEl.textContent = 'Opening website for your skill…';
 try {
 const page = await inspectPublicWebsite(urlMatch[0].replace(/[),.;]+$/, ''), activeRequest.signal);
-browserContext = '\n\nBROWSER PAGE CONTEXT (fetched by OpenClaude):\nURL: ' + page.url + '\nTITLE: ' + page.title + '\nPAGE TEXT:\n' + page.content + '\n\nUse this retrieved page content as source material. Do not claim you cannot open websites. OpenClaude can read public page text, but it cannot capture screenshots or control a live Chrome session.';
+browserContext = '\n\nBROWSER PAGE CONTEXT (fetched by OpenClaude):\nURL: ' + page.url + '\nTITLE: ' + page.title + '\nPAGE TEXT:\n' + page.content + '\n\nSANITIZED HTML STRUCTURE:\n' + page.html + '\n\nUse the retrieved page text and HTML structure as source material. Do not claim you cannot open websites. OpenClaude can read public page text, but it cannot capture screenshots or control a live Chrome session.';
 } catch (browseError) {
 browserContext = '\n\nBROWSER INSPECTION NOTE: OpenClaude could not retrieve the URL: ' + browseError.message + '. Explain this specific limitation and continue with any information the user provided.';
 }
