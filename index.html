@@ -656,7 +656,7 @@ container.innerHTML = `
 <h4>🐍 Local Python Script</h4>
 <p>Zero-dependency SQLite data extractor</p>
 </div>
-<div class="starter-card" data-prompt="Explain how direct API keys work in browser apps.">
+<div class="starter-card" data-prompt="Explain how a Cloudflare Worker keeps an API key private.">
 <h4>🔒 Private API Key</h4>
 <p>Your key stays in Cloudflare Secrets</p>
 </div>
@@ -856,7 +856,7 @@ code: `<div style="font-family:sans-serif;padding:24px;background:#141413;color:
 generatedArtifact = true;
 replyText = 'Generated a live interactive calculator artifact in the sandbox. Tap the pill below to open it.';
 } else {
-replyText = `Offline sandbox response for: "${prompt}". Select a Gemini model or Cloudflare Worker to use live AI.`;
+replyText = `Offline sandbox response for: "${prompt}". Select Cloudflare Worker to connect to live AI.`;
 }
 }
 } catch (error) {
