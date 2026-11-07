@@ -631,6 +631,16 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 
 
 .working-chat-name{min-width:0;max-width:min(38vw,280px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#b8c0ce;font:500 13px/1.2 var(--font-sans)}.chat-new-top-btn,.chat-menu-top-btn{width:38px;min-width:38px;height:38px;min-height:38px;border:0;border-radius:50%;background:#242424;color:#fff;font-size:24px}.chat-menu-top-btn{font-size:25px}.chat-options-menu{position:fixed;z-index:150;right:12px;top:62px;width:min(290px,calc(100vw - 24px));max-height:75dvh;overflow:auto;padding:7px;background:#171717;border:1px solid #333;border-radius:14px;box-shadow:0 16px 50px #0009}.chat-options-menu[hidden]{display:none}.chat-options-menu button{width:100%;min-height:43px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#f4f4f4;text-align:left;font:450 14px var(--font-sans)}.chat-options-menu button:active{background:#303030}.chat-options-menu button.danger{color:#ff8178}.pinned-section-dynamic{padding:8px 0 6px}.pinned-chat-item{width:100%;height:38px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#ddd;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:14px var(--font-sans)}.pinned-chat-item.active{background:#252525;color:#fff}@media(max-width:860px){.working-chat-name{max-width:16vw}.chat-options-menu{top:62px}.mobile-nav-right{gap:3px}.chat-new-top-btn,.chat-menu-top-btn{width:34px;min-width:34px;height:34px;min-height:34px}}
+
+.chat-options-menu{position:fixed;z-index:9999;top:64px;right:12px;width:min(290px,calc(100vw - 24px));max-height:min(75dvh,560px);overflow-y:auto;padding:7px;background:#191919;border:1px solid #363636;border-radius:14px;box-shadow:0 18px 55px #000b;overscroll-behavior:contain}
+.chat-options-menu[hidden]{display:none!important}
+.chat-options-menu button{display:flex;align-items:center;width:100%;min-height:44px;padding:0 13px;border:0;border-radius:9px;background:transparent;color:#f5f5f5;text-align:left;font:450 14px var(--font-sans);cursor:pointer}
+.chat-options-menu button:active,.chat-options-menu button:focus-visible{background:#303030;outline:none}
+.chat-options-menu button.danger{color:#ff8178}
+.chat-container.chat-entering{animation:chatEnter .34s cubic-bezier(.2,.75,.25,1) both}
+@keyframes chatEnter{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.chat-container.chat-entering{animation:none}}
+
 </style>
 </head>
 <body>
@@ -676,6 +686,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <button class="icon-btn desktop-artifact-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
 </div>
 </header>
+<div id="chatOptionsMenu" class="chat-options-menu" role="menu" hidden></div>
 <div class="chat-scroll" id="chatScroll">
 <div class="chat-container" id="chatContainer"></div>
 </div>
@@ -985,6 +996,10 @@ list.appendChild(item);
 function renderChat() {
 const container = document.getElementById('chatContainer');
 const thread = state.threads.find(t => t.id === state.activeThreadId);
+container.classList.remove('chat-entering');
+void container.offsetWidth;
+container.classList.add('chat-entering');
+container.addEventListener('animationend',()=>container.classList.remove('chat-entering'),{once:true});
 container.innerHTML = '';
 document.getElementById('workingChatName').textContent = thread ? thread.title : 'New Conversation';
 if (thread && thread.locked) { container.innerHTML='<div class="hero-empty"><h2 class="hero-greeting">Chat locked</h2><p class="hero-sub">Use the three-dot menu to unlock this chat.</p></div>'; return; }
