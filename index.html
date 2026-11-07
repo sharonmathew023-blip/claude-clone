@@ -1,122 +1,1000 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#141413">
-  <title>OpenClaude · Local AI Workspace</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>OpenClaude — Free & Open Source AI Workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #faf9f5;
+      --bg-surface: #f0eee6;
+      --bg-elevated: #e8e6dc;
+      --bg-input: #ffffff;
+      --text-primary: #141413;
+      --text-secondary: #4d4c48;
+      --text-muted: #87867f;
+      --border-hairline: #d1cfc5;
+      --accent-terracotta: #c96442;
+      --accent-hover: #b55535;
+      --user-bubble: #e8e6dc;
+      --font-serif: 'Newsreader', Georgia, serif;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-pill: 999px;
+      --z-sidebar: 40;
+      --z-artifact: 50;
+      --z-modal: 60;
+    }
+
+    [data-theme="dark"] {
+      --bg-canvas: #141413;
+      --bg-surface: #1e1e1c;
+      --bg-elevated: #2a2a27;
+      --bg-input: #222220;
+      --text-primary: #faf9f5;
+      --text-secondary: #b0aea5;
+      --text-muted: #87867f;
+      --border-hairline: #30302e;
+      --accent-terracotta: #d97757;
+      --accent-hover: #c96442;
+      --user-bubble: #2a2a27;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      height: 100dvh;
+      display: flex;
+      overflow: hidden;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .app-shell { display: flex; width: 100%; height: 100dvh; position: relative; }
+
+    .sidebar {
+      width: 280px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      z-index: var(--z-sidebar);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-foss {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      background: var(--accent-terracotta);
+      color: #faf9f5;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+    }
+
+    .new-chat-btn {
+      margin: 12px 16px;
+      padding: 10px 14px;
+      background: var(--accent-terracotta);
+      color: #faf9f5;
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: var(--font-sans);
+      font-weight: 500;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .new-chat-btn:hover { background: var(--accent-hover); }
+
+    .nav-tabs { display: flex; padding: 0 16px 8px; gap: 6px; }
+
+    .nav-tab {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    .nav-tab.active {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border-color: var(--border-hairline);
+      font-weight: 500;
+    }
+
+    .search-box {
+      margin: 4px 16px 10px;
+      padding: 8px 12px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-family: var(--font-sans);
+    }
+
+    .thread-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .thread-item {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      transition: background 0.15s;
+    }
+    .thread-item:hover, .thread-item.active {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+    .thread-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 190px;
+    }
+    .delete-thread-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .delete-thread-btn:hover { color: #e5534b; background: rgba(229,83,75,0.1); }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-hairline);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .footer-btn {
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-size: 0.84rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-sans);
+    }
+
+    .main-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      min-width: 0;
+    }
+
+    .topbar {
+      height: 56px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-canvas);
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      min-width: 40px;
+      min-height: 40px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--bg-surface); border-color: var(--border-hairline); }
+
+    .model-selector {
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      max-width: 65vw;
+    }
+
+    .chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 16px 32px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-container {
+      max-width: 740px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .hero-empty {
+      margin: 6vh auto 24px;
+      text-align: center;
+      max-width: 560px;
+    }
+    .hero-spark {
+      color: var(--accent-terracotta);
+      font-size: 2.2rem;
+      margin-bottom: 12px;
+    }
+    .hero-greeting {
+      font-family: var(--font-serif);
+      font-size: 2.1rem;
+      font-weight: 500;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .hero-sub {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+    }
+    .starter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      text-align: left;
+    }
+    .starter-card {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      cursor: pointer;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+    .starter-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-terracotta);
+    }
+    .starter-card h4 { font-size: 0.88rem; margin-bottom: 4px; color: var(--text-primary); }
+    .starter-card p { font-size: 0.78rem; color: var(--text-muted); }
+
+    .msg-row { display: flex; flex-direction: column; gap: 6px; }
+    .msg-user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);
+      max-width: 85%;
+      font-size: 0.96rem;
+      line-height: 1.5;
+      border: 1px solid var(--border-hairline);
+    }
+    .msg-assistant {
+      align-self: flex-start;
+      width: 100%;
+      font-family: var(--font-serif);
+      font-size: 1.06rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+    }
+    .msg-assistant p { margin-bottom: 12px; }
+    .msg-assistant pre {
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+
+    .artifact-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      font-family: var(--font-sans);
+      font-size: 0.86rem;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .artifact-pill:hover { border-color: var(--accent-terracotta); }
+
+    .composer-wrap {
+      padding: 12px 16px 18px;
+      background: var(--bg-canvas);
+      border-top: 1px solid var(--border-hairline);
+    }
+    .composer-box {
+      max-width: 740px;
+      margin: 0 auto;
+      background: var(--bg-input);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .composer-textarea {
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.96rem;
+      resize: none;
+      outline: none;
+      max-height: 140px;
+      min-height: 44px;
+    }
+    .composer-actions { display: flex; align-items: center; justify-content: space-between; }
+    .composer-status { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-muted); }
+    .send-btn {
+      background: var(--accent-terracotta);
+      color: #faf9f5;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 8px 16px;
+      font-weight: 500;
+      font-size: 0.86rem;
+      cursor: pointer;
+    }
+    .send-btn:hover { background: var(--accent-hover); }
+
+    .artifact-pane {
+      width: 440px;
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border-hairline);
+      display: none;
+      flex-direction: column;
+      z-index: var(--z-artifact);
+    }
+    .artifact-pane.open { display: flex; }
+    .artifact-header {
+      height: 56px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .artifact-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .artifact-iframe { flex: 1; border: none; background: #fff; width: 100%; }
+    .artifact-code {
+      flex: 1;
+      padding: 16px;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: var(--z-modal);
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      max-width: 480px;
+      width: 100%;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-card h3 { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 500; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+    .field-group input, .field-group textarea {
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 860px) {
+      .sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        transform: translateX(-100%);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .artifact-pane { position: fixed; inset: 0; width: 100%; }
+    }
+  </style>
 </head>
 <body>
-<div class="app-shell">
-  <div class="mobile-scrim" id="mobileScrim"></div>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <a class="brand" href="#" aria-label="OpenClaude home"><span class="brand-mark">✳</span><span>OpenClaude</span><small>LOCAL</small></a>
-      <button class="icon-btn mobile-only" id="closeSidebar" aria-label="Close menu">×</button>
-    </div>
-    <button class="new-chat" id="newChat"><span>＋</span> New conversation <kbd>⌘ K</kbd></button>
-    <div class="side-label-row"><span>YOUR WORKSPACE</span><button class="text-btn" id="clearSearch">Clear</button></div>
-    <label class="search-wrap"><span>⌕</span><input id="searchInput" type="search" placeholder="Search conversations"></label>
-    <div class="thread-list" id="threadList" aria-label="Conversations"></div>
-    <div class="sidebar-bottom">
-      <div class="engine-card">
-        <div class="engine-icon">◉</div>
-        <div class="engine-copy"><strong id="engineName">Demo mode</strong><span id="engineSub">No model connected</span></div>
-        <span class="status-dot" id="engineDot"></span>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-title">
+          <span>OpenClaude</span>
+          <span class="badge-foss">FOSS</span>
+        </div>
+        <button class="icon-btn" id="closeSidebarBtn" title="Toggle Drawer">✕</button>
       </div>
-      <button class="side-action" id="settingsOpen"><span>⚙</span> Settings <span class="side-shortcut">Configure</span></button>
-      <button class="side-action" id="themeToggle"><span>◐</span> Appearance <span class="side-shortcut" id="themeName">Dark</span></button>
-      <div class="privacy-note">Your chats stay in this browser.<br>Connect your own model to chat.</div>
-    </div>
-  </aside>
 
-  <main class="main-view">
-    <header class="topbar">
-      <div class="top-left">
-        <button class="icon-btn" id="openSidebar" aria-label="Open menu">☰</button>
-        <div class="mobile-brand">OpenClaude <span>LOCAL</span></div>
-        <div class="workspace-label">Workspace <span> / </span> <b id="activeTitle">New conversation</b></div>
+      <button class="new-chat-btn" id="newChatBtn">+ New Conversation</button>
+
+      <div class="nav-tabs">
+        <button class="nav-tab active" data-filter="all">Chats</button>
+        <button class="nav-tab" data-filter="starred">Saved</button>
       </div>
-      <div class="top-right">
-        <span class="connection-label"><i id="connectionDot"></i><span id="connectionText">Demo mode</span></span>
-        <button class="model-chip" id="modelChip">Choose model <span>⌄</span></button>
+
+      <input type="search" class="search-box" id="searchInput" placeholder="Search conversations..." />
+
+      <div class="thread-list" id="threadList"></div>
+
+      <div class="sidebar-footer">
+        <button class="footer-btn" id="openSettingsBtn">
+          <span>⚙️ API / Cloudflare Setup</span>
+          <span id="providerBadge">Gemini</span>
+        </button>
+        <button class="footer-btn" id="themeToggleBtn">
+          <span>🌗 Toggle Theme</span>
+          <span id="themeLabel">Dark</span>
+        </button>
       </div>
-    </header>
+    </aside>
 
-    <section class="chat-scroll" id="chatScroll">
-      <div class="chat-container" id="chatContainer"></div>
-    </section>
+    <main class="main-view">
+      <header class="topbar">
+        <button class="icon-btn" id="openSidebarBtn" title="Menu">☰</button>
+        <select class="model-selector" id="modelSelect">
+          <option value="gemini-2.5-flash">Google Gemini 2.5 Flash (Direct API)</option>
+          <option value="gemini-2.5-pro">Google Gemini 2.5 Pro (Direct API)</option>
+          <option value="cloudflare-worker">Cloudflare Worker Proxy (/chat/completions)</option>
+          <option value="offline-synth">Built-in Offline Sandbox (No Server)</option>
+        </select>
+        <button class="icon-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
+      </header>
 
-    <footer class="composer-area">
-      <div class="composer" id="composer">
-        <textarea id="promptInput" rows="1" placeholder="Message OpenClaude..." aria-label="Message"></textarea>
-        <div class="composer-bottom">
-          <div class="composer-tools">
-            <button class="tool-btn" id="attachHint" title="Attach files (coming later)" disabled>＋ <span>Attach</span></button>
-            <span class="composer-hint">AI can make mistakes. Check important details.</span>
+      <div class="chat-scroll" id="chatScroll">
+        <div class="chat-container" id="chatContainer"></div>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="composer-box">
+          <textarea
+            id="promptInput"
+            class="composer-textarea"
+            placeholder="Ask anything, write code, or generate an interactive HTML artifact..."
+          ></textarea>
+          <div class="composer-actions">
+            <span class="composer-status" id="engineStatus">Engine: Direct Gemini API Ready</span>
+            <button class="send-btn" id="sendBtn">Send ↑</button>
           </div>
-          <div class="composer-right"><span id="typingStatus"></span><button class="send-btn" id="sendBtn" aria-label="Send message">↑</button></div>
         </div>
       </div>
-      <div class="composer-foot">Open-source interface · Powered by Gemini through Cloudflare</div>
-    </footer>
-  </main>
+    </main>
 
-  <aside class="artifact-pane" id="artifactPane">
-    <header class="artifact-head">
-      <div><span class="eyebrow">WORKSPACE</span><strong id="artifactTitle">Artifact preview</strong></div>
-      <div class="artifact-head-actions">
-        <button class="tab-btn active" id="previewTab">Preview</button>
-        <button class="tab-btn" id="codeTab">Code</button>
-        <button class="icon-btn" id="closeArtifact" aria-label="Close artifact">×</button>
+    <aside class="artifact-pane" id="artifactPane">
+      <div class="artifact-header">
+        <strong id="artifactTitle" style="font-size:0.9rem;">Artifact Preview</strong>
+        <div style="display:flex; gap:6px;">
+          <button class="nav-tab active" id="tabPreviewBtn">Preview</button>
+          <button class="nav-tab" id="tabCodeBtn">Code</button>
+          <button class="icon-btn" id="closeArtifactBtn">✕</button>
+        </div>
       </div>
-    </header>
-    <div class="artifact-content">
-      <iframe id="artifactFrame" title="Artifact preview" sandbox="allow-scripts"></iframe>
-      <pre id="artifactCode" class="artifact-code"></pre>
-    </div>
-    <div class="artifact-foot"><span>Sandboxed preview</span><button class="text-btn" id="downloadArtifact">Download HTML</button></div>
-  </aside>
-</div>
+      <div class="artifact-body">
+        <iframe class="artifact-iframe" id="artifactFrame" sandbox="allow-scripts"></iframe>
+        <pre class="artifact-code" id="artifactCode"></pre>
+      </div>
+    </aside>
+  </div>
 
-<div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-  <section class="settings-modal">
-    <header class="modal-head"><div><span class="eyebrow">PREFERENCES</span><h2 id="settingsTitle">Settings</h2></div><button class="icon-btn" id="settingsClose" aria-label="Close settings">×</button></header>
-    <div class="settings-body">
-      <div class="settings-section">
-        <h3>AI provider</h3>
-        <p>OpenClaude connects to Gemini through your private Cloudflare Worker. Your Gemini API key stays in Cloudflare.</p>
-        <label class="field-label">Provider</label>
-        <select id="providerSelect"><option value="ollama">Ollama (local)</option><option value="openai">Cloudflare Worker · Gemini</option><option value="demo">Demo mode (no AI)</option></select>
-        <label class="field-label">Base URL</label>
-        <input id="baseUrl" type="url" spellcheck="false" placeholder="https://openclaude-api.sharonmathew023.workers.dev">
-        <div class="field-help" id="urlHelp">Ollama API base URL. Usually http://localhost:11434</div>
-        <label class="field-label">Model name</label>
-        <input id="modelName" type="text" spellcheck="false" placeholder="llama3.2">
-        <label class="field-label">API key <span class="optional">optional</span></label>
-        <input id="apiKey" type="password" autocomplete="off" placeholder="Only used for this browser session">
-        <div class="field-help">Leave this empty. The Gemini key is stored securely as a Cloudflare Worker secret.</div>
-        <div class="settings-actions"><button class="secondary-btn" id="testConnection">Test connection</button><span id="testResult" role="status"></span></div>
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-card">
+      <h3>Direct Gemini & Proxy Configuration</h3>
+      <p style="font-size:0.83rem; color:var(--text-secondary);">
+        Configure your direct Google Gemini API key or your Cloudflare Worker proxy endpoint.
+      </p>
+      <div class="field-group">
+        <label>Google Gemini API Key (Direct Mode)</label>
+        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+        <small style="display:block;color:var(--text-muted);font-size:0.75rem;line-height:1.45;margin-top:6px;">
+          Direct mode stores this key in this browser’s local storage. Use it only on a private device; do not publish a personal API key in a public website.
+        </small>
       </div>
-      <div class="settings-section">
-        <h3>Assistant instructions</h3>
-        <label class="field-label">System prompt</label>
-        <textarea id="systemPrompt" rows="4">You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.</textarea>
+      <div class="field-group">
+        <label>Cloudflare Worker Proxy URL (Backup / Proxy Mode)</label>
+        <input type="text" id="workerUrlInput" value="https://openclaude-api.sharonmathew023.workers.dev/chat/completions" />
       </div>
-      <div class="settings-section">
-        <h3>Your data</h3>
-        <p>Conversations and preferences are stored in this browser using localStorage. Clearing browser data removes them.</p>
-        <div class="data-actions"><button class="secondary-btn" id="exportData">Export conversations</button><button class="secondary-btn danger-btn" id="clearAll">Delete all conversations</button></div>
+      <div class="field-group">
+        <label>Project System Prompt</label>
+        <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+        <button class="footer-btn" id="exportDataBtn">Export JSON</button>
+        <button class="send-btn" id="saveSettingsBtn">Save & Close</button>
       </div>
     </div>
-    <footer class="modal-foot"><span id="saveNotice">Changes apply to new messages.</span><button class="primary-btn" id="saveSettings">Save settings</button></footer>
-  </section>
-</div>
-<div class="toast" id="toast" role="status"></div>
-<script src="app.js"></script>
-</body>
-</html>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'openclaude_direct_v2';
+
+    const defaultState = {
+      theme: 'dark',
+      activeThreadId: 'thread-1',
+      filter: 'all',
+      search: '',
+      apiKey: '',
+      workerUrl: 'https://openclaude-api.sharonmathew023.workers.dev/chat/completions',
+      systemPrompt: 'You are OpenClaude, a helpful, concise, open-source AI assistant.',
+      activeArtifact: {
+        title: 'Interactive Pomodoro Timer',
+        code: `<div style="font-family:sans-serif;text-align:center;padding:32px;background:#faf9f5;color:#141413;height:100vh;">
+  <h2 style="color:#c96442;">OpenClaude Artifact Sandbox</h2>
+  <p style="font-size:3rem;margin:20px 0;" id="t">25:00</p>
+  <button onclick="alert('Artifact interactivity verified!')" style="padding:10px 20px;background:#c96442;color:#fff;border:none;border-radius:8px;cursor:pointer;">Start Focus Session</button>
+</div>`
+      },
+      threads: [
+        {
+          id: 'thread-1',
+          title: 'Welcome to OpenClaude Direct',
+          starred: true,
+          messages: [
+            {
+              role: 'assistant',
+              content: 'Welcome to **OpenClaude (Direct API Mode)** — configured with native Google Gemini API support and Cloudflare Worker proxy fallback.\n\n- **Direct Gemini:** Enter your AI Studio key in **Settings**, select `Google Gemini 2.5 Flash`, and chat directly.\n- **Cloudflare Proxy:** Select `Cloudflare Worker Proxy` if you want to route through your deployed worker.\n- **Live Artifacts:** Tap the card below to inspect or run interactive HTML/JS components.',
+              hasArtifact: true
+            }
+          ]
+        }
+      ]
+    };
+
+    let state = structuredClone(defaultState);
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function applyTheme() {
+      document.documentElement.setAttribute('data-theme', state.theme);
+      document.getElementById('themeLabel').textContent = state.theme === 'dark' ? 'Dark' : 'Light';
+    }
+
+    function formatMarkdown(text) {
+      let safe = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      safe = safe.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+      safe = safe.replace(/`([^`]+)`/g, '<code style="font-family:var(--font-mono);background:var(--bg-surface);padding:2px 5px;border-radius:4px;">$1</code>');
+      safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      return safe.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join('');
+    }
+
+    function renderSidebar() {
+      const list = document.getElementById('threadList');
+      list.innerHTML = '';
+      const q = state.search.toLowerCase();
+
+      state.threads
+        .filter(t => (state.filter === 'starred' ? t.starred : true))
+        .filter(t => t.title.toLowerCase().includes(q))
+        .forEach(thread => {
+          const item = document.createElement('div');
+          item.className = `thread-item ${thread.id === state.activeThreadId ? 'active' : ''}`;
+          item.innerHTML = `
+            <span class="thread-title">${thread.starred ? '★ ' : ''}${thread.title}</span>
+            <button class="delete-thread-btn" title="Delete">✕</button>
+          `;
+          item.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-thread-btn')) {
+              state.threads = state.threads.filter(x => x.id !== thread.id);
+              if (!state.threads.length) createNewThread();
+              else if (state.activeThreadId === thread.id) state.activeThreadId = state.threads[0].id;
+              saveState();
+              renderSidebar();
+              renderChat();
+              return;
+            }
+            state.activeThreadId = thread.id;
+            saveState();
+            renderSidebar();
+            renderChat();
+            document.getElementById('sidebar').classList.remove('open');
+          });
+          list.appendChild(item);
+        });
+    }
+
+    function renderChat() {
+      const container = document.getElementById('chatContainer');
+      const thread = state.threads.find(t => t.id === state.activeThreadId);
+      container.innerHTML = '';
+
+      if (!thread || thread.messages.length === 0) {
+        container.innerHTML = `
+          <div class="hero-empty">
+            <div class="hero-spark">✻</div>
+            <h1 class="hero-greeting">How can I help you think today?</h1>
+            <p class="hero-sub">Direct Google Gemini API integration with zero server overhead.</p>
+            <div class="starter-grid">
+              <div class="starter-card" data-prompt="Build an interactive HTML/CSS calculator widget as an Artifact.">
+                <h4>⚡ Interactive Artifact</h4>
+                <p>Generate a live HTML calculator in the split sandbox</p>
+              </div>
+              <div class="starter-card" data-prompt="Write a clean Python script to parse SQLite databases locally.">
+                <h4>🐍 Local Python Script</h4>
+                <p>Zero-dependency SQLite data extractor</p>
+              </div>
+              <div class="starter-card" data-prompt="Explain how direct API keys work in browser apps.">
+                <h4>🔑 Direct API Info</h4>
+                <p>Learn about direct browser client requests</p>
+              </div>
+            </div>
+          </div>
+        `;
+        container.querySelectorAll('.starter-card').forEach(card => {
+          card.addEventListener('click', () => {
+            document.getElementById('promptInput').value = card.dataset.prompt;
+            handleSend();
+          });
+        });
+        return;
+      }
+
+      thread.messages.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'msg-row';
+        if (m.role === 'user') {
+          row.innerHTML = `<div class="msg-user">${m.content.replace(/</g, '&lt;')}</div>`;
+        } else {
+          row.innerHTML = `
+            <div class="msg-assistant">
+              ${formatMarkdown(m.content)}
+              ${m.hasArtifact ? `<button class="artifact-pill" onclick="openArtifactPane()">⧉ Open Interactive Artifact: ${state.activeArtifact.title}</button>` : ''}
+            </div>
+          `;
+        }
+        container.appendChild(row);
+      });
+
+      const scroll = document.getElementById('chatScroll');
+      scroll.scrollTop = scroll.scrollHeight;
+    }
+
+    function openArtifactPane() {
+      const pane = document.getElementById('artifactPane');
+      pane.classList.add('open');
+      document.getElementById('artifactTitle').textContent = state.activeArtifact.title;
+      document.getElementById('artifactFrame').srcdoc = state.activeArtifact.code;
+      document.getElementById('artifactCode').textContent = state.activeArtifact.code;
+    }
+
+    function createNewThread() {
+      const id = 'thread-' + Date.now();
+      state.threads.unshift({
+        id,
+        title: 'New Conversation',
+        starred: false,
+        messages: []
+      });
+      state.activeThreadId = id;
+      saveState();
+      renderSidebar();
+      renderChat();
+    }
+
+    // Read stored data defensively so one damaged localStorage value cannot blank the app.
+    function readStoredState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (!saved || typeof saved !== 'object') return structuredClone(defaultState);
+        return {
+          ...structuredClone(defaultState),
+          ...saved,
+          threads: Array.isArray(saved.threads) ? saved.threads : structuredClone(defaultState.threads),
+          activeArtifact: saved.activeArtifact || structuredClone(defaultState.activeArtifact)
+        };
+      } catch (error) {
+        console.warn('OpenClaude storage could not be read:', error);
+        return structuredClone(defaultState);
+      }
+    }
+
+    // Replace the original state only when the page first loads.
+    state = readStoredState();
+
+    function normalizeWorkerUrl(value) {
+      const raw = (value || '').trim();
+      if (!raw) throw new Error('Add your Cloudflare Worker URL in Settings.');
+      const url = new URL(raw);
+      if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Worker URL must use HTTP or HTTPS.');
+      if (url.pathname === '/' || url.pathname === '') url.pathname = '/chat/completions';
+      return url.toString();
+    }
+
+    async function readWorkerReply(response) {
+      const body = await response.text();
+      if (!response.ok) {
+        let message = body || response.statusText || 'Unknown server error';
+        try {
+          const parsed = JSON.parse(body);
+          message = parsed.error?.message || parsed.error || parsed.message || message;
+          if (typeof message !== 'string') message = JSON.stringify(message);
+        } catch (_) {}
+        throw new Error(`HTTP ${response.status}: ${message}`);
+      }
+      if (!body.trim()) throw new Error('Worker returned an empty response.');
+
+      // Support both standard JSON responses and Server-Sent Events (SSE).
+      try {
+        const data = JSON.parse(body);
+        const content = data.choices?.[0]?.message?.content
+          ?? data.choices?.[0]?.text
+          ?? data.response
+          ?? data.content;
+        if (typeof content === 'string' && content.trim()) return content;
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          // Not JSON: try parsing it as an SSE stream below.
+        } else {
+          throw error;
+        }
+      }
+
+      const chunks = [];
+      for (const line of body.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const event = JSON.parse(payload);
+          if (event.error) throw new Error(event.error.message || JSON.stringify(event.error));
+          const piece = event.choices?.[0]?.delta?.content
+            ?? event.choices?.[0]?.message?.content
+            ?? event.choices?.[0]?.text
+            ?? event.response;
+          if (typeof piece === 'string') chunks.push(piece);
+        } catch (error) {
+          if (error instanceof SyntaxError) continue;
+          throw error;
+        }
+      }
+      const result = chunks.join('');
+      if (!result.trim()) {
+        throw new Error('Worker replied, but its response format was not recognized. Check the Worker /chat/completions route.');
+      }
+      return result;
+    }
+
+    async function fetchWithTimeout(url, options, timeoutMs = 90000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...options, signal: controller.signal });
+      } catch (error) {
+        if (error.name === 'AbortError') throw new Error('Request timed out after 90 seconds. Try again.');
+        if (error instanceof TypeError) throw new Error('Network request failed. Check your internet connection, URL, and CORS settings.');
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function handleSend() {
+      const input = document.getElementById('promptInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const prompt = input.value.trim();
+      if (!prompt || sendBtn.disabled) return;
+
+      let thread = state.threads.find(t => t.id === state.activeThreadId);
+      if (!thread) {
+        createNewThread();
+        thread = state.threads.find(t => t.id === state.activeThreadId);
+      }
+      if (thread.messages.length === 0) thread.title = prompt.slice(0, 34);
+
+      thread.messages.push({ role: 'user', content: prompt });
+      input.value = '';
+      renderSidebar();
+      renderChat();
+
+      const model = document.getElementById('modelSelect').value;
+      const statusEl = document.getElementById('engineStatus');
+      let replyText = '';
+      let generatedArtifact = false;
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Thinking…';
+      statusEl.textContent = `Connecting to ${model}…`;
+
+      try {
+        if (model.startsWith('gemini-')) {
+          if (!state.apiKey || !state.apiKey.trim()) {
+            throw new Error('No Gemini API key is set. Open Settings and add your Google AI Studio key.');
+          }
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+          const res = await fetchWithTimeout(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': state.apiKey.trim()
+            },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: state.systemPrompt }] },
+              contents: thread.messages.map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+              }))
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const message = data.error?.message || res.statusText || 'Gemini request failed';
+            throw new Error(`Gemini HTTP ${res.status}: ${message}`);
+          }
+          if (data.promptFeedback?.blockReason) {
+            throw new Error(`Gemini blocked this prompt: ${data.promptFeedback.blockReason}`);
+          }
+          const candidate = data.candidates?.[0];
+          const candidateText = candidate?.content?.parts
+            ?.map(part => part.text || '')
+            .join('')
+            .trim();
+          replyText = candidateText || (candidate?.finishReason
+            ? `Gemini finished without text. Reason: ${candidate.finishReason}`
+            : 'Gemini returned an empty response.');
+        } else if (model === 'cloudflare-worker') {
+          const endpoint = normalizeWorkerUrl(state.workerUrl);
+          statusEl.textContent = 'Connecting to Cloudflare Worker…';
+          const res = await fetchWithTimeout(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'gemini-3.8-flash',
+              stream: true,
+              messages: [
+                { role: 'system', content: state.systemPrompt },
+                ...thread.messages.map(m => ({ role: m.role, content: m.content }))
+              ]
+            })
+          });
+          replyText = await readWorkerReply(res);
+        } else {
+          // Built-in offline sandbox: no network request is made.
+          if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('calculator') || prompt.toLowerCase().includes('html')) {
+            state.activeArtifact = {
+              title: 'Live Calculator Artifact',
+              code: `<div style="font-family:sans-serif;padding:24px;background:#141413;color:#faf9f5;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+  <h3 style="color:#d97757;margin-bottom:12px;">OpenClaude Live Calculator</h3>
+  <input id="calc" placeholder="e.g. 24 * 7" style="padding:10px;border-radius:8px;border:1px solid #30302e;background:#222220;color:#fff;font-size:1.1rem;" />
+  <button onclick="document.getElementById('out').textContent = 'Result: ' + Function('return (' + document.getElementById('calc').value + ')')()" style="margin-top:10px;padding:8px 18px;background:#c96442;color:#fff;border:none;border-radius:8px;cursor:pointer;">Compute</button>
+  <p id="out" style="margin-top:16px;font-size:1.2rem;"></p>
+</div>`
+            };
+            generatedArtifact = true;
+            replyText = 'Generated a live interactive calculator artifact in the sandbox. Tap the pill below to open it.';
+          } else {
+            replyText = `Offline sandbox response for: "${prompt}". Select a Gemini model or Cloudflare Worker to use live AI.`;
+          }
+        }
+      } catch (error) {
+        console.error('OpenClaude request failed:', error);
+        replyText = `**Connection error**\n\n${error.message || 'Something went wrong while contacting the selected provider.'}`;
+        statusEl.textContent = 'Engine: Connection failed';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send ↑';
+      }
+
+      thread.messages.push({
+        role: 'assistant',
+        content: replyText,
+        hasArtifact: generatedArtifact
+      });
+      if (!statusEl.textContent.includes('failed')) statusEl.textContent = 'Engine: Ready';
+      saveState();
+      renderChat();
+      if (generatedArtifact) openArtifactPane();
+    }
+
+    document.getElementById('newChatBtn').addEventListener('click', createNewThread);
+    document.getElementById('sendBtn').addEventListener('click', handleSend);
+    document.getElementById('promptInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    });
+
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      saveState();
+      applyTheme();
+    });
+
+    document.getElementById('searchInput').addEventListener('input', e => {
+      state.search = e.target.value;
+      renderSidebar();
+    });
+
+    document.querySelectorAll('.sidebar .nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar .nav-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.filter = btn.dataset.filter;
