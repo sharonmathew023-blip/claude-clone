@@ -1135,7 +1135,7 @@ function extractArtifactFromReply(markdown) {
     code = headEnd >= 0 ? code.slice(0, headEnd) + style + code.slice(headEnd) : style + code;
   }
   if (js && !new RegExp('<script[\\s>]', 'i').test(code)) {
-    const script = '<script>\n' + js.replace(/<\/script/gi, '<\\/script') + '\n</script>';
+    const script = '<scr' + 'ipt>\n' + js + '\n</scr' + 'ipt>';
     const bodyEnd = code.toLowerCase().indexOf('</body>');
     code = bodyEnd >= 0 ? code.slice(0, bodyEnd) + script + code.slice(bodyEnd) : code + script;
   }
