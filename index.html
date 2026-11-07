@@ -938,6 +938,8 @@ flushParagraph();
 return output.join('\n');
 }
 function renderSidebar() {
+const pinnedList=document.getElementById('pinnedThreadList'),pinnedSection=document.getElementById('pinnedSection');
+if(pinnedList&&pinnedSection){pinnedList.innerHTML='';const pinned=state.threads.filter(t=>t.pinned);pinnedSection.hidden=!pinned.length;pinned.forEach(t=>{const b=document.createElement('button');b.className='pinned-chat-item'+(t.id===state.activeThreadId?' active':'');b.textContent=t.title;b.onclick=()=>{state.activeThreadId=t.id;saveState();renderSidebar();renderChat();closeDrawer();};pinnedList.appendChild(b);});}
 const list = document.getElementById('threadList');
 list.innerHTML = '';
 const q = state.search.toLowerCase();
