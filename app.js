@@ -4,7 +4,7 @@
   const KEY = "openclaude_workspace_v2";
   const DEFAULTS = {
     theme: "dark", provider: "openai", baseUrl: "https://openclaude-api.sharonmathew023.workers.dev",
-    model: "gemini-2.5-flash", systemPrompt: "You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.",
+    model: "gemini-3.8-flash", systemPrompt: "You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.",
     activeId: null, threads: []
   };
   let state = loadState();
