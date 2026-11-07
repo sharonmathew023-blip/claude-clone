@@ -642,7 +642,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 @media(prefers-reduced-motion:reduce){.chat-container.chat-entering{animation:none}}
 
 </style>
-<link rel="stylesheet" href="styles.css?v=20261107">
+<link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <div class="app-shell">
@@ -654,7 +654,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
     </button>
     <button class="drawer-close-btn" id="closeSidebarBtn" aria-label="Close menu" title="Close">×</button>
   </div>
-  <button class="drawer-chat-btn sidebar-new-chat" id="newChatBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>New conversation</span></button>
+  <button class="drawer-chat-btn" id="newChatBtn"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"></path></svg><span>New conversation</span></button>
   <input type="search" class="search-box drawer-search-input" id="searchInput" placeholder="Search conversations..." />
   <div class="drawer-scroll">
     <section class="drawer-section pinned-section-dynamic" id="pinnedSection" hidden><div class="drawer-section-label">Pinned</div><div id="pinnedThreadList"></div></section>
@@ -699,7 +699,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
 <button class="icon-btn mobile-mic-btn" id="mobileMicBtn" type="button" title="Dictate message" aria-label="Dictate message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8"/></svg></button>
-<button class="send-btn" id="sendBtn" type="button" aria-label="Send message" title="Send message">↑</button>
+<button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message">↑</button>
 <button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice input" aria-label="Start voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
 </div>
 </div>
@@ -1058,9 +1058,9 @@ container.innerHTML = `
 <h4>🔒 Private API Key</h4>
 <p>Your key stays in Cloudflare Secrets</p>
 </div>
-<div class="starter-card" data-prompt="Give me a practical 7-day plan to improve my web design skills, with one small project each day.">
-<h4>🎨 Creative Practice</h4>
-<p>Turn ideas into a week of small projects</p>
+<div class="starter-card" data-prompt="Help me plan a polished personal website with a clear visual direction.">
+<h4>✦ Creative direction</h4>
+<p>Turn a rough idea into a practical project plan</p>
 </div>
 </div>
 </div>
@@ -1104,13 +1104,23 @@ container.querySelectorAll('.msg-assistant pre').forEach(pre => {
   const code = pre.querySelector('code'); if (!code) return;
   const toolbar = document.createElement('div'); toolbar.className = 'code-toolbar';
   const label = document.createElement('span'); label.textContent = code.dataset.language || 'code';
-  const button = document.createElement('button'); button.className = 'code-copy-btn'; button.type = 'button'; button.textContent = 'Copy code';
+  const actions = document.createElement('div'); actions.className = 'code-toolbar-actions';
+  const button = document.createElement('button'); button.className = 'code-copy-btn'; button.type = 'button'; button.textContent = 'Copy';
   button.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(code.textContent); button.textContent = 'Copied'; }
     catch (_) { button.textContent = 'Unavailable'; }
-    setTimeout(() => { button.textContent = 'Copy code'; }, 1400);
+    setTimeout(() => { button.textContent = 'Copy'; }, 1400);
   });
-  toolbar.append(label, button); pre.appendChild(toolbar);
+  const download = document.createElement('button'); download.className = 'code-download-btn'; download.type = 'button'; download.textContent = 'Download';
+  download.addEventListener('click', () => {
+    const lang = (code.dataset.language || '').toLowerCase();
+    const extensions = {javascript:'js',js:'js',typescript:'ts',ts:'ts',python:'py',py:'py',html:'html',css:'css',json:'json',bash:'sh',sh:'sh',sql:'sql',markdown:'md',md:'md',xml:'xml',yaml:'yml',yml:'yml'};
+    const blob = new Blob([code.textContent], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = 'openclaude-code.' + (extensions[lang] || 'txt'); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  actions.append(button, download); toolbar.append(label, actions); pre.appendChild(toolbar);
 });
 const scroll = document.getElementById('chatScroll');
 scroll.scrollTop = scroll.scrollHeight;
@@ -1479,7 +1489,7 @@ let artifactOpened = false;
 let stopped = false;
 let isError = false;
 activeRequest = new AbortController();
-sendBtn.textContent = 'Stop ■';
+sendBtn.textContent = '■'; sendBtn.title = 'Stop generation'; sendBtn.setAttribute('aria-label','Stop generation');
 statusEl.textContent = `Connecting to ${model}…`;
 try {
 if (model === 'cloudflare-worker') {
@@ -1563,7 +1573,7 @@ statusEl.textContent = 'Engine: Connection failed';
 } finally {
 activeRequest = null;
 sendBtn.disabled = false;
-sendBtn.textContent = 'Send ↑';
+sendBtn.textContent = '↑'; sendBtn.title = 'Send message'; sendBtn.setAttribute('aria-label','Send message');
 }
 if (stopped) {
 saveState();
