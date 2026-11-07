@@ -875,7 +875,7 @@ const headers = { 'Content-Type': 'application/json' };
 if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
 const response = await fetch(base + route, { method: payload ? 'POST' : 'GET', headers, body: payload ? JSON.stringify(payload) : undefined });
 const data = await response.json().catch(() => ({}));
-if (!response.ok) throw new Error(data.error?.message || data.error || data.message || ('HTTP ' + response.status));
+if (!response.ok) { const detail = data.error?.message || data.error || data.message || data; const readable = typeof detail === 'string' ? detail : JSON.stringify(detail); throw new Error((readable && readable !== '{}' ? readable : 'HTTP ' + response.status) + ' (HTTP ' + response.status + ')'); }
 return data;
 }
 async function connectGithub() {
