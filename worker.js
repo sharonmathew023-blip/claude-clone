@@ -22,7 +22,7 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname.endsWith("/models")) {
-      return json({ data: [{ id: "gemini-2.5-flash", object: "model" }] });
+      return json({ data: [{ id: "gemini-3.8-flash", object: "model" }] });
     }
 
     if (request.method !== "POST" || !url.pathname.endsWith("/chat/completions")) {
@@ -44,7 +44,7 @@ export default {
       return json({ error: { message: "A non-empty messages array is required." } }, 400);
     }
 
-    const model = String(input.model || "gemini-2.5-flash").replace(/^models\//, "");
+    const model = String(input.model || "gemini-3.8-flash").replace(/^models\//, "");
     const systemText = input.messages
       .filter(message => message.role === "system")
       .map(message => String(message.content || ""))
