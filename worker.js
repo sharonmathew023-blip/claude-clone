@@ -14,8 +14,7 @@
 //   GET  /health            -> { ok, hasKey }
 //   GET  /models            -> OpenAI-style model list
 //   POST /chat/completions  -> streams the reply
-//   POST /images/generate  -> Nano Banana 2 image generation
-// Errors are JSON: { error: { message, type, code } } with a real HTTP status.
+//// Errors are JSON: { error: { message, type, code } } with a real HTTP status.
 
 const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a time
 const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
@@ -40,72 +39,6 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors.headers });
 
     const path = url.pathname.replace(/\/+$/, "");
-
-    // Separate Nano Banana 2 image-generation endpoint. Chat streaming is unchanged.
-    if (request.method === "POST" && path === "/images/generate") {
-      if (!env.ACCESS_TOKEN) return fail(503, "Missing ACCESS_TOKEN Worker secret.");
-      if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
-      if (!env.GEMINI_API_KEY) return fail(503, "Missing GEMINI_API_KEY Worker secret.");
-      try {
-        const input = await request.json().catch(() => null);
-        if (!input || typeof input !== "object") return fail(400, "Send a valid JSON request.");
-        const prompt = String(input.prompt || "").trim();
-        if (!prompt) return fail(400, "Enter an image prompt first.");
-        if (prompt.length > 6000) return fail(413, "Image prompts must be 6,000 characters or fewer.");
-        const aspectRatio = String(input.aspectRatio || "1:1");
-        const allowedRatios = new Set(["1:1","1:4","1:8","2:3","3:2","3:4","4:1","4:3","4:5","5:4","8:1","9:16","16:9","21:9"]);
-        if (!allowedRatios.has(aspectRatio)) return fail(400, "Unsupported image aspect ratio.");
-        const imageSize = String(input.imageSize || "1K");
-        if (!["1K","2K","4K"].includes(imageSize)) return fail(400, "Image size must be 1K, 2K, or 4K.");
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 90000);
-        let upstream;
-        let raw;
-        try {
-          upstream = await fetch(`${GEMINI_BASE}/models/gemini-3.1-flash-image:generateContent`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                responseModalities: ["TEXT", "IMAGE"],
-                responseFormat: { image: { aspectRatio, imageSize } }
-              }
-            }),
-            signal: controller.signal
-          });
-          raw = await upstream.text();
-        } finally {
-          clearTimeout(timer);
-        }
-        let data = {};
-        try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
-        if (!upstream.ok) {
-          const message = extractMessage(raw) || `Gemini image generation returned HTTP ${upstream.status}.`;
-          return fail(upstream.status, message);
-        }
-        const candidate = data.candidates && data.candidates[0];
-        const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
-        const imagePart = parts.find(part => part.inlineData && part.inlineData.data);
-        const textPart = parts.find(part => part.text);
-        if (!imagePart) {
-          const block = data.promptFeedback && data.promptFeedback.blockReason;
-          return fail(422, block ? `Google blocked this image prompt (${block}). Try rephrasing it.` : (textPart && textPart.text) || "Gemini returned no image. Try a different prompt.");
-        }
-        return reply({
-          ok: true,
-          model: "gemini-3.1-flash-image",
-          mimeType: imagePart.inlineData.mimeType || "image/png",
-          imageData: imagePart.inlineData.data,
-          text: textPart ? textPart.text : "",
-          aspectRatio,
-          imageSize
-        });
-      } catch (error) {
-        if (error && error.name === "AbortError") return fail(504, "Image generation took too long. Try again with a simpler prompt.");
-        return fail(502, error.message || "Image generation failed.");
-      }
-    }
 
     // Public-page reader used by browser-oriented custom skills.
     if (request.method === "POST" && path === "/browse") {
