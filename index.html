@@ -634,7 +634,7 @@ let safe = text
 .replace(/&/g, '&amp;')
 .replace(/</g, '&lt;')
 .replace(/>/g, '&gt;');
-safe = safe.replace(/```([\\w.+-]*)\\n?([\\s\\S]*?)```/g, (_, lang, code) => '<pre><code data-language="' + (lang || 'code') + '">' + code.replace(/\\n$/, '') + '</code></pre>');
+safe = safe.replace(/```([\w.+-]*)\n?([\s\S]*?)```/g, (_, lang, code) => '<pre><code data-language="' + (lang || 'code') + '">' + code.replace(/\n$/, '') + '</code></pre>');
 safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 safe = safe.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 return safe.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join('');
