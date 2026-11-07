@@ -950,56 +950,91 @@ return output.join('\n');
 }
 function renderSidebar() {
 const pinnedList=document.getElementById('pinnedThreadList'),pinnedSection=document.getElementById('pinnedSection');
-if(pinnedList&&pinnedSection){pinnedList.innerHTML='';const pinned=state.threads.filter(t=>t.pinned);pinnedSection.hidden=!pinned.length;pinned.forEach(t=>{const b=document.createElement('button');b.className='pinned-chat-item'+(t.id===state.activeThreadId?' active':'');b.textContent=t.title;b.onclick=()=>{state.activeThreadId=t.id;saveState();renderSidebar();renderChat();closeDrawer();};pinnedList.appendChild(b);});}
-const list = document.getElementById('threadList');
-list.innerHTML = '';
-const q = state.search.toLowerCase();
+if(pinnedList&&pinnedSection){
+  pinnedList.innerHTML='';
+  const pinned=state.threads.filter(t=>t.pinned);
+  pinnedSection.hidden=!pinned.length;
+  pinned.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='pinned-chat-item'+(t.id===state.activeThreadId?' active':'');
+    b.textContent=t.title;
+    b.onclick=()=>{state.activeThreadId=t.id;saveState();renderSidebar();renderChat();closeDrawer();};
+    pinnedList.appendChild(b);
+  });
+}
+const list=document.getElementById('threadList');
+list.innerHTML='';
+const q=state.search.toLowerCase();
 state.threads
-.filter(t => (state.filter === 'starred' ? t.starred : true))
-.filter(t => t.title.toLowerCase().includes(q))
-.forEach(thread => {
-const item = document.createElement('div');
-item.className = `thread-item ${thread.id === state.activeThreadId ? 'active' : ''}`;
-item.innerHTML = `
-<span class="thread-title">${thread.title}</span>
-<span style="display:flex;gap:5px;align-items:center">
-<button class="star-thread-btn" title="${thread.starred ? 'Remove from Saved' : 'Save conversation'}" aria-label="${thread.starred ? 'Unsave' : 'Save'} conversation">${thread.starred ? '★' : '☆'}</button>
-<button class="delete-thread-btn" title="Delete conversation" aria-label="Delete conversation">✕</button>
-</span>
-`;
-item.addEventListener('click', (e) => {
-if (e.target.classList.contains('star-thread-btn')) {
-e.stopPropagation();
-thread.starred = !thread.starred;
-saveState();
-renderSidebar();
-return;
-}
-if (e.target.classList.contains('delete-thread-btn')) {
-state.threads = state.threads.filter(x => x.id !== thread.id);
-if (!state.threads.length) createNewThread();
-else if (state.activeThreadId === thread.id) state.activeThreadId = state.threads[0].id;
-saveState();
-renderSidebar();
-renderChat();
-return;
-}
-state.activeThreadId = thread.id;
-saveState();
-renderSidebar();
-renderChat();
-closeDrawer();
+.filter(t=>(state.filter==='starred'?t.starred:true))
+.filter(t=>t.title.toLowerCase().includes(q))
+.forEach(thread=>{
+  const item=document.createElement('div');
+  item.className='thread-item'+(thread.id===state.activeThreadId?' active':'');
+  const title=document.createElement('span');
+  title.className='thread-title';
+  title.textContent=thread.title;
+  item.appendChild(title);
+  let holdTimer=null,holdTriggered=false,startX=0,startY=0;
+  const cancelHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}};
+  item.addEventListener('pointerdown',e=>{
+    if(e.target.closest('button'))return;
+    holdTriggered=false;startX=e.clientX;startY=e.clientY;
+    cancelHold();
+    holdTimer=setTimeout(()=>{
+      holdTimer=null;holdTriggered=true;
+      openSidebarThreadMenu(thread,startX,startY);
+    },520);
+  });
+  item.addEventListener('pointermove',e=>{
+    if(Math.abs(e.clientX-startX)>12||Math.abs(e.clientY-startY)>12)cancelHold();
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(type=>item.addEventListener(type,cancelHold));
+  item.addEventListener('contextmenu',e=>{
+    e.preventDefault();holdTriggered=true;
+    openSidebarThreadMenu(thread,e.clientX,e.clientY);
+  });
+  item.addEventListener('click',e=>{
+    if(holdTriggered){e.preventDefault();e.stopPropagation();holdTriggered=false;return;}
+    state.activeThreadId=thread.id;saveState();renderSidebar();renderChat();closeDrawer();
+  });
+  list.appendChild(item);
 });
-list.appendChild(item);
-});
+}
+function openSidebarThreadMenu(thread,x,y){
+  const menu=document.getElementById('chatOptionsMenu');
+  menu.innerHTML='';
+  const actions=[
+    [thread.pinned?'Unpin':'Pin',()=>{
+      thread.pinned=!thread.pinned;saveState();renderSidebar();
+    }],
+    ['Rename',()=>{
+      const title=prompt('Chat name:',thread.title);
+      if(title&&title.trim()){thread.title=title.trim().slice(0,80);saveState();renderSidebar();if(thread.id===state.activeThreadId)renderChat();}
+    }],
+    ['Delete',()=>{
+      if(!confirm('Delete this chat? This cannot be undone.'))return;
+      state.threads=state.threads.filter(t=>t.id!==thread.id);
+      if(!state.threads.length){createNewThread();return;}
+      if(state.activeThreadId===thread.id)state.activeThreadId=state.threads[0].id;
+      saveState();renderSidebar();renderChat();
+    }]
+  ];
+  actions.forEach(([label,fn],i)=>{
+    const b=document.createElement('button');
+    b.textContent=label;
+    if(i===2)b.className='danger';
+    b.onclick=()=>{closeChatMenu();fn();};
+    menu.appendChild(b);
+  });
+  menu.style.left=Math.max(12,Math.min(x||16,window.innerWidth-302))+'px';
+  menu.style.right='auto';
+  menu.style.top=Math.max(12,Math.min(y||80,window.innerHeight-170))+'px';
+  menu.hidden=false;
 }
 function renderChat() {
 const container = document.getElementById('chatContainer');
 const thread = state.threads.find(t => t.id === state.activeThreadId);
-container.classList.remove('chat-entering');
-void container.offsetWidth;
-container.classList.add('chat-entering');
-container.addEventListener('animationend',()=>container.classList.remove('chat-entering'),{once:true});
 container.innerHTML = '';
 document.getElementById('workingChatName').textContent = thread ? thread.title : 'New Conversation';
 if (thread && thread.locked) { container.innerHTML='<div class="hero-empty"><h2 class="hero-greeting">Chat locked</h2><p class="hero-sub">Use the three-dot menu to unlock this chat.</p></div>'; return; }
@@ -1094,7 +1129,25 @@ state.activeThreadId = id;
 saveState();
 renderSidebar();
 renderChat();
+animateNewConversation();
 if (window.matchMedia('(max-width: 860px)').matches) closeDrawer();
+}
+function animateNewConversation(){
+  const container=document.getElementById('chatContainer');
+  if(!container)return;
+  requestAnimationFrame(()=>{
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    if(typeof container.animate==='function'){
+      container.animate(
+        [{opacity:0,transform:'translate3d(0,22px,0) scale(.985)'},{opacity:1,transform:'translate3d(0,0,0) scale(1)'}],
+        {duration:480,easing:'cubic-bezier(.16,1,.3,1)',fill:'both'}
+      );
+    }else{
+      container.classList.remove('chat-entering');
+      void container.offsetWidth;
+      container.classList.add('chat-entering');
+    }
+  });
 }
 // Read stored data defensively so one damaged localStorage value cannot blank the app.
 function readStoredState() {
@@ -1472,9 +1525,8 @@ function openChatMenu(){
  [thread.locked?'Unlock chat':'Lock chat',()=>{if(thread.locked){const p=prompt('Enter chat password:');if(p===thread.lockPassword){thread.locked=false;thread.lockPassword='';saveState();renderChat();}else if(p!==null)alert('Wrong password.');}else{const p=prompt('Create a password for this chat:');if(p){thread.locked=true;thread.lockPassword=p;saveState();renderChat();}}}],
  ['Uploaded files',()=>{const f=[...new Set(thread.messages.flatMap(m=>m.attachments||[]))];alert(f.length?'Files in this chat:\n\n'+f.join('\n'):'No files uploaded in this chat.');}],
  ['Find in chat',()=>{const q=prompt('Find a phrase:');if(!q)return;const rows=[...document.querySelectorAll('.msg-row')],found=rows.filter(x=>x.textContent.toLowerCase().includes(q.toLowerCase()));if(found.length){found[0].scrollIntoView({behavior:'smooth',block:'center'});found[0].style.outline='2px solid #9aabff';setTimeout(()=>found[0].style.outline='',2200);}else alert('No matches found.');}],
- ['Add to home',async()=>{const url=location.href.split('#')[0]+'#chat='+encodeURIComponent(thread.id);try{if(navigator.share)await navigator.share({title:thread.title,url});else{await navigator.clipboard.writeText(url);alert('Chat link copied. Open it in your browser and choose Add to Home Screen.');}}catch(e){}}],
  ['Delete',()=>{if(!confirm('Delete this chat? This cannot be undone.'))return;state.threads=state.threads.filter(t=>t.id!==thread.id);if(!state.threads.length)createNewThread();else state.activeThreadId=state.threads[0].id;saveState();renderSidebar();renderChat();}]
- ];actions.forEach(([label,fn],i)=>{const b=document.createElement('button');b.textContent=label;if(i===7)b.className='danger';b.onclick=()=>{closeChatMenu();fn();};menu.appendChild(b);});menu.hidden=false;
+ ];actions.forEach(([label,fn],i)=>{const b=document.createElement('button');b.textContent=label;if(i===6)b.className='danger';b.onclick=()=>{closeChatMenu();fn();};menu.appendChild(b);});menu.hidden=false;
 }
 document.getElementById('chatMenuBtn').addEventListener('click',e=>{e.stopPropagation();const m=document.getElementById('chatOptionsMenu');if(m.hidden)openChatMenu();else closeChatMenu();});
 document.getElementById('topNewChatBtn').addEventListener('click',()=>{closeChatMenu();createNewThread();});
