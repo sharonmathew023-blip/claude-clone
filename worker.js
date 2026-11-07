@@ -179,6 +179,22 @@ function textOf(content) {
   return content == null ? "" : String(content);
 }
 
+function partsOf(content) {
+  if (!Array.isArray(content)) return [{ text: textOf(content) }];
+  const parts = [];
+  for (const item of content) {
+    if (!item || typeof item !== "object") continue;
+    if (typeof item.text === "string") parts.push({ text: item.text });
+    if (item.type === "image_url" && item.image_url && typeof item.image_url.url === "string") {
+      const match = item.image_url.url.match(/^data:([\w.+-]+\/[\w.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+      if (match && /^(image\/|application\/pdf$)/.test(match[1])) {
+        parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+      }
+    }
+  }
+  return parts.length ? parts : [{ text: "" }];
+}
+
 function buildGeminiBody(input) {
   const systemText = input.messages
     .filter((m) => m && m.role === "system")
@@ -189,10 +205,14 @@ function buildGeminiBody(input) {
   for (const m of input.messages) {
     if (!m || m.role === "system") continue;
     const role = m.role === "assistant" ? "model" : "user";
-    const text = textOf(m.content);
+    const parts = partsOf(m.content);
     const last = contents[contents.length - 1];
-    if (last && last.role === role) last.parts[0].text += "\n\n" + text; // Gemini wants alternating turns
-    else contents.push({ role, parts: [{ text }] });
+    if (last && last.role === role) {
+      if (last.parts.length && parts.length && last.parts[last.parts.length - 1].text && parts[0].text) {
+        last.parts[last.parts.length - 1].text += "\n\n" + parts.shift().text;
+      }
+      last.parts.push(...parts);
+    } else contents.push({ role, parts });
   }
   while (contents.length && contents[0].role !== "user") contents.shift();
 
