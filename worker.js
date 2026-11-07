@@ -43,6 +43,8 @@ export default {
     // Composio connector routes. The project API key never leaves this Worker.
     if (path.startsWith("/composio/")) {
       if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare > Worker > Settings > Variables and Secrets, then deploy.");
+      if (!env.ACCESS_TOKEN) return fail(503, "Composio routes are locked until you add an ACCESS_TOKEN Worker secret.");
+      if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
       const api = "https://backend.composio.dev/api/v3.1";
       const callComposio = async (endpoint, options = {}) => {
         const res = await fetch(api + endpoint, {
