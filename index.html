@@ -1284,10 +1284,7 @@ function extractArtifactFromReply(markdown) {
     code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
   }
   if (css && !new RegExp('<style[\\s>]', 'i').test(code)) {
-    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n
-/* Keep the legacy send arrow hidden on phones; the voice/send control is unified. */
-@media(max-width:860px){#sendBtn.send-btn{display:none!important}}
-</style>';
+    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n</style>';
     const headEnd = code.toLowerCase().indexOf('</head>');
     code = headEnd >= 0 ? code.slice(0, headEnd) + style + code.slice(headEnd) : style + code;
   }
