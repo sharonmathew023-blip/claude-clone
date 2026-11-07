@@ -14,6 +14,7 @@
 //   GET  /health            -> { ok, hasKey }
 //   GET  /models            -> OpenAI-style model list
 //   POST /chat/completions  -> streams the reply
+//   POST /images/generate  -> Nano Banana 2 image generation
 // Errors are JSON: { error: { message, type, code } } with a real HTTP status.
 
 const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a time
@@ -59,6 +60,7 @@ export default {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 90000);
         let upstream;
+        let raw;
         try {
           upstream = await fetch(`${GEMINI_BASE}/models/gemini-3.1-flash-image:generateContent`, {
             method: "POST",
@@ -72,10 +74,10 @@ export default {
             }),
             signal: controller.signal
           });
+          raw = await upstream.text();
         } finally {
           clearTimeout(timer);
         }
-        const raw = await upstream.text();
         let data = {};
         try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
         if (!upstream.ok) {
