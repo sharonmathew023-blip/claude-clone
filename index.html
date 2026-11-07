@@ -480,6 +480,8 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
 .msg-assistant p{margin:.55em 0}.msg-assistant blockquote{margin:14px 0;padding:10px 15px;border-left:3px solid var(--accent-terracotta);background:var(--bg-surface);border-radius:0 10px 10px 0;color:var(--text-secondary)}
 .msg-assistant ul,.msg-assistant ol{padding-left:1.5rem;margin:.7em 0}.msg-assistant li{padding-left:.2rem;margin:.3em 0}.msg-assistant a{color:var(--accent-terracotta);text-decoration:underline;text-underline-offset:3px}.msg-assistant hr{border:0;border-top:1px solid var(--border-hairline);margin:18px 0}
 
+
+.attachment-row{display:flex;align-items:center;margin:0 0 8px}.attach-btn{padding:7px 11px;border-radius:9px;font-size:.78rem}.attachment-preview{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 9px}.attachment-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:6px 9px;border:1px solid var(--border-hairline);background:var(--bg-surface);border-radius:9px;color:var(--text-secondary);font-size:.75rem}.attachment-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}.attachment-chip button{border:0;background:transparent;color:var(--text-secondary);font-size:1rem;padding:0 2px}.skill-list{display:grid;gap:7px;margin-top:10px}.skill-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-hairline);border-radius:10px}.skill-toggle{display:flex;align-items:center;gap:8px;font-size:.8rem;min-width:0}.skill-toggle span{overflow-wrap:anywhere}.skill-row .footer-btn{padding:5px 8px;font-size:.72rem}
 </style>
 </head>
 <body>
@@ -530,6 +532,7 @@ class="composer-textarea"
 enterkeyhint="send"
 placeholder="Ask anything, write code, or generate an interactive HTML artifact..."
 ></textarea>
+<div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn">＋ Attach files</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
 <button class="send-btn" id="sendBtn">Send ↑</button>
@@ -577,6 +580,9 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
+<label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a Markdown or text skill file. Enabled skills are added to the assistant's instructions.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skill</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" hidden></div><div id="skillList" class="skill-list"></div>
+</div>
+<div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
 <label>App connectors</label>
 <p style="font-size:0.75rem; color:var(--text-muted);">Connect apps through Composio. Your Composio API key stays in Cloudflare.</p>
 <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -604,6 +610,7 @@ accessToken: '',
 composioSessionId: '',
 model: 'gemini-3.5-flash',
 systemPrompt: 'You are OpenClaude, a helpful, concise, open-source AI assistant.',
+customSkills: [],
 activeArtifact: {
 title: 'Interactive Pomodoro Timer',
 code: `<div style="font-family:sans-serif;text-align:center;padding:32px;background:#faf9f5;color:#141413;height:100vh;">
@@ -630,6 +637,34 @@ hasArtifact: true
 let state = structuredClone(defaultState);
 function saveState() {
 try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { console.warn('OpenClaude could not save local settings:', error); }
+}
+let selectedAttachments = [];
+function renderAttachmentPreview() {
+const box = document.getElementById('attachmentPreview');
+if (!box) return;
+box.innerHTML = '';
+selectedAttachments.forEach((file, index) => {
+const chip = document.createElement('span'); chip.className = 'attachment-chip';
+const label = document.createElement('span'); label.textContent = file.name;
+const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label','Remove ' + file.name);
+remove.addEventListener('click', () => { selectedAttachments.splice(index,1); renderAttachmentPreview(); });
+chip.append(label,remove); box.appendChild(chip);
+});
+}
+function renderSkillList() {
+const box = document.getElementById('skillList'); if (!box) return;
+box.innerHTML = '';
+(state.customSkills || []).forEach((skill,index) => {
+const row = document.createElement('div'); row.className = 'skill-row';
+const label = document.createElement('label'); label.className = 'skill-toggle';
+const check = document.createElement('input'); check.type = 'checkbox'; check.checked = skill.enabled !== false;
+check.addEventListener('change', () => { skill.enabled = check.checked; saveState(); });
+const name = document.createElement('span'); name.textContent = skill.name;
+label.append(check,name);
+const del = document.createElement('button'); del.type='button'; del.className='footer-btn'; del.textContent='Remove';
+del.addEventListener('click',()=>{state.customSkills.splice(index,1);saveState();renderSkillList();});
+row.append(label,del);box.appendChild(row);
+});
 }
 function applyTheme() {
 document.documentElement.setAttribute('data-theme', state.theme);
@@ -1138,19 +1173,24 @@ async function handleSend(event) {
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
 const prompt = input.value.trim();
+const attachments = selectedAttachments.slice();
+if (!prompt && !attachments.length) return;
 if (activeRequest) {
 if (event && event.type === 'click') activeRequest.abort(); // the button reads Stop while a request runs
 return;
 }
-if (!prompt) return;
 let thread = state.threads.find(t => t.id === state.activeThreadId);
 if (!thread) {
 createNewThread();
 thread = state.threads.find(t => t.id === state.activeThreadId);
 }
 if (thread.messages.length === 0) thread.title = prompt.slice(0, 34);
-thread.messages.push({ role: 'user', content: prompt });
+const attachmentNames = attachments.map(file => file.name);
+const savedPrompt = prompt || 'Please review the attached file(s).';
+thread.messages.push({ role: 'user', content: savedPrompt, attachments: attachmentNames });
 input.value = '';
+selectedAttachments = [];
+renderAttachmentPreview();
 renderSidebar();
 renderChat();
 const model = document.getElementById('modelSelect').value;
@@ -1167,8 +1207,8 @@ if (model === 'cloudflare-worker') {
 const endpoint = normalizeWorkerUrl(state.workerUrl);
 statusEl.textContent = 'Connecting to Cloudflare Worker…';
 replyText = await requestWorkerReply(endpoint, [
-{ role: 'system', content: state.systemPrompt },
-...thread.messages.filter(m => !m.isError).map(m => ({ role: m.role, content: m.content }))
+{ role: 'system', content: [state.systemPrompt, ...(state.customSkills || []).filter(skill => skill.enabled !== false).map(skill => 'CUSTOM SKILL: ' + skill.name + '\\n' + skill.content)].filter(Boolean).join('\\n\\n') },
+...thread.messages.filter(m => !m.isError).map((m, index, arr) => ({ role: m.role, content: m === arr[arr.length - 1] && m.role === 'user' && attachments.length ? [{ type: 'text', text: m.content + (attachments.some(f => f.kind === 'text') ? '\\n\\n' + attachments.filter(f => f.kind === 'text').map(f => 'FILE: ' + f.name + '\\n' + f.content).join('\\n\\n') : '') }, ...attachments.filter(f => f.kind === 'binary').map(f => ({ type: 'image_url', image_url: { url: f.dataUrl } }))] : m.content }))
 ], activeRequest.signal, text => { statusEl.textContent = text; });
 } else {
 // Built-in offline sandbox: no network request is made.
@@ -1288,6 +1328,7 @@ document.getElementById('workerUrlInput').value = state.workerUrl;
 document.getElementById('modelInput').value = state.model || 'gemini-3.5-flash';
 document.getElementById('sysPromptInput').value = state.systemPrompt;
 document.getElementById('accessTokenInput').value = state.accessToken || '';
+renderSkillList();
 document.getElementById('settingsModal').classList.add('open');
 });
 document.getElementById('settingsModal').addEventListener('click', e => {
@@ -1299,6 +1340,31 @@ document.getElementById('settingsModal').classList.remove('open');
 document.getElementById('sidebar').classList.remove('open');
 document.getElementById('artifactPane').classList.remove('open');
 }
+});
+document.getElementById('attachFilesBtn').addEventListener('click', () => document.getElementById('attachmentInput').click());
+document.getElementById('attachmentInput').addEventListener('change', async event => {
+const files = Array.from(event.target.files || []);
+for (const file of files) {
+ if (file.size > 10 * 1024 * 1024) { alert(file.name + ' is over the 10 MB limit.'); continue; }
+ const ext = file.name.split('.').pop().toLowerCase();
+ const isText = file.type.startsWith('text/') || ['md','txt','csv','json','js','ts','py','html','css','xml','yaml','yml','log','sh','sql'].includes(ext);
+ if (isText) {
+  const content = await file.text();
+  selectedAttachments.push({name:file.name,kind:'text',content:content.slice(0,120000)});
+ } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+  const dataUrl = await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
+  selectedAttachments.push({name:file.name,kind:'binary',dataUrl});
+ } else { alert('Unsupported file type: ' + file.name); }
+}
+renderAttachmentPreview();event.target.value='';
+});
+document.getElementById('uploadSkillBtn').addEventListener('click',()=>document.getElementById('skillFileInput').click());
+document.getElementById('skillFileInput').addEventListener('change',async event=>{
+const file=event.target.files && event.target.files[0];if(!file)return;
+if(file.size>200*1024){alert('Skill files must be 200 KB or smaller.');event.target.value='';return;}
+const content=await file.text();
+if(!(state.customSkills||[]).some(skill=>skill.name===file.name))state.customSkills.push({name:file.name,content,enabled:true});
+saveState();renderSkillList();event.target.value='';
 });
 document.getElementById('connectGithubBtn').addEventListener('click', connectGithub);
 document.getElementById('checkConnectorsBtn').addEventListener('click', checkConnectorStatus);
