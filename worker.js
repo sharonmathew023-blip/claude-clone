@@ -226,10 +226,10 @@ function extractPageText(source, contentType) {
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
   const html = source
-    .replace(/<!--[\\s\\S]*?-->/g, " ")
-    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<iframe\\b[^>]*>[\\s\\S]*?<\\/iframe>/gi, " ")
-    .replace(/\\son[a-z]+\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, " ")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/javascript:/gi, "")
     .slice(0, 30000);
   return { title: title || "Website", content, html };
