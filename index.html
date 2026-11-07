@@ -1956,6 +1956,14 @@ a.click();
 document.getElementById('providerBadge').textContent = 'Worker';
 document.getElementById('engineStatus').textContent = 'Engine: Cloudflare Worker Ready';
 applyTheme();
+function syncMobileComposerButton() {
+  const legacySend = document.getElementById('sendBtn');
+  if (!legacySend) return;
+  if (window.matchMedia('(max-width: 860px)').matches) legacySend.style.setProperty('display', 'none', 'important');
+  else legacySend.style.removeProperty('display');
+}
+syncMobileComposerButton();
+window.addEventListener('resize', syncMobileComposerButton);
 renderSidebar();
 renderChat();
 window.addEventListener('pagehide', flushThreadSave);
