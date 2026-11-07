@@ -745,9 +745,12 @@ const parsed = JSON.parse(body);
 message = parsed.error?.message || parsed.error || parsed.message || message;
 if (typeof message !== 'string') message = JSON.stringify(message);
 } catch (_) {}
-throw new Error(`HTTP ${response.status}: ${message}`);
+const failure = new Error(friendlyHttpMessage(response.status, message));
+failure.retryable = RETRYABLE_STATUS.has(response.status);
+failure.retryAfter = parseRetryAfter(response.headers.get('retry-after'));
+throw failure;
 }
-if (!body.trim()) throw new Error('Worker returned an empty response.');
+if (!body.trim()) { const empty = new Error('The Worker returned an empty response.'); empty.retryable = true; throw empty; }
 // Support both standard JSON responses and Server-Sent Events (SSE).
 try {
 const data = JSON.parse(body);
@@ -756,7 +759,7 @@ const content = data.choices?.[0]?.message?.content
 ?? data.response
 ?? data.content;
 if (typeof content === 'string' && content.trim()) return content;
-if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+if (data.error) throw streamError(data.error);
 } catch (error) {
 if (error instanceof SyntaxError) {
 // Not JSON: try parsing it as an SSE stream below.
@@ -772,7 +775,7 @@ const payload = trimmed.slice(5).trim();
 if (!payload || payload === '[DONE]') continue;
 try {
 const event = JSON.parse(payload);
-if (event.error) throw new Error(event.error.message || JSON.stringify(event.error));
+if (event.error) throw streamError(event.error);
 const piece = event.choices?.[0]?.delta?.content
 ?? event.choices?.[0]?.message?.content
 ?? event.choices?.[0]?.text
@@ -789,24 +792,111 @@ throw new Error('Worker replied, but its response format was not recognized. Che
 }
 return result;
 }
-async function fetchWithTimeout(url, options, timeoutMs = 90000) {
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 4;
+let activeRequest = null;
+function parseRetryAfter(value) {
+if (!value) return null;
+const secs = Number(value);
+if (!Number.isNaN(secs)) return Math.max(0, secs);
+const when = Date.parse(value);
+return Number.isNaN(when) ? null : Math.max(0, (when - Date.now()) / 1000);
+}
+function friendlyHttpMessage(status, detail) {
+const d = detail ? ` Details: ${String(detail).slice(0, 300)}` : '';
+if (status === 400 && /api key/i.test(detail || '')) return 'Gemini rejected the API key. Check the GEMINI_API_KEY secret on your Worker.';
+switch (status) {
+case 400: return `The request was rejected (400).${d}`;
+case 401: case 403: return `The Worker or Gemini refused access (${status}). Check the Worker secrets and any access token.${d}`;
+case 404: return `Model or route not found (404). Check the Worker URL and the model name.${d}`;
+case 413: return 'This conversation is too long for one request. Start a new chat.';
+case 422: return detail || 'Gemini could not answer this. Try rephrasing your message.';
+case 429: return `Gemini hit a rate limit or quota (429). Wait a minute, then try again.${d}`;
+case 500: case 502: return `Gemini had a server error (${status}).${d}`;
+case 503: return `Gemini is overloaded right now (503). This is usually temporary.${d}`;
+case 504: return `Gemini took too long to answer (504).${d}`;
+default: return `The server returned HTTP ${status}.${d}`;
+}
+}
+function streamError(e) {
+const message = typeof e === 'string' ? e : (e.message || JSON.stringify(e));
+const code = Number(e && e.code) || 0;
+const err = new Error(code ? friendlyHttpMessage(code, message) : message);
+err.retryable = RETRYABLE_STATUS.has(code);
+return err;
+}
+function describeFetchFailure(error, url, timedOut) {
+if (error && error.name === 'AbortError') {
+const e = new Error(timedOut ? 'The server did not answer within 60 seconds.' : 'Stopped.');
+if (timedOut) { e.retryable = true; e.timeout = true; } else { e.stopped = true; }
+return e;
+}
+if (error instanceof TypeError) {
+let origin = '';
+try { origin = new URL(url).origin; } catch (_) {}
+return new Error(`Could not reach ${origin || 'the server'}. Open that address in a new browser tab. If it does not load, fix the Worker URL in Settings or try another network (turn off VPNs and ad blockers). If it loads, the Worker may be blocking this site (CORS).`);
+}
+return error;
+}
+function sleepWithCountdown(ms, signal, onTick) {
+return new Promise((resolve, reject) => {
+const end = Date.now() + ms;
+const timer = setInterval(() => {
+if (signal.aborted) return halt();
+const left = end - Date.now();
+if (left <= 0) { clearInterval(timer); resolve(); } else onTick(Math.ceil(left / 1000));
+}, 250);
+function halt() { clearInterval(timer); const e = new Error('Stopped.'); e.stopped = true; reject(e); }
+if (signal.aborted) halt(); else onTick(Math.ceil(ms / 1000));
+});
+}
+async function requestOnce(url, payload, userSignal, timeoutMs = 60000) {
 const controller = new AbortController();
-const timer = setTimeout(() => controller.abort(), timeoutMs);
+let timedOut = false;
+const onUser = () => controller.abort();
+if (userSignal.aborted) { const e = new Error('Stopped.'); e.stopped = true; throw e; }
+userSignal.addEventListener('abort', onUser, { once: true });
+const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
 try {
-return await fetch(url, { ...options, signal: controller.signal });
-} catch (error) {
-if (error.name === 'AbortError') throw new Error('Request timed out after 90 seconds. Try again.');
-if (error instanceof TypeError) throw new Error('Network request failed. Check your internet connection, URL, and CORS settings.');
-throw error;
+let res;
+try {
+res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
+} catch (error) { throw describeFetchFailure(error, url, timedOut); }
+try {
+return await readWorkerReply(res); // the same timer and Stop button also cover reading the body
+} catch (error) { throw describeFetchFailure(error, url, timedOut); }
 } finally {
 clearTimeout(timer);
+userSignal.removeEventListener('abort', onUser);
 }
 }
-async function handleSend() {
+async function requestWorkerReply(endpoint, payload, signal, onStatus) {
+let timeouts = 0;
+for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+onStatus(attempt === 1 ? 'Connecting to Cloudflare Worker…' : `Trying again (attempt ${attempt} of ${MAX_ATTEMPTS})…`);
+try {
+return await requestOnce(endpoint, payload, signal);
+} catch (error) {
+if (error.stopped) throw error;
+if (error.timeout) timeouts++;
+if (!error.retryable || attempt === MAX_ATTEMPTS || timeouts > 1) {
+if (attempt > 1) error.message += ` (Tried ${attempt} times.)`;
+throw error;
+}
+const waitMs = error.retryAfter != null ? Math.min(error.retryAfter * 1000, 30000) : Math.min(1000 * 2 ** (attempt - 1), 8000) * (0.75 + Math.random() * 0.5);
+await sleepWithCountdown(waitMs, signal, secs => onStatus(`Gemini is busy. Retrying in ${secs}s… (attempt ${attempt + 1} of ${MAX_ATTEMPTS})`));
+}
+}
+}
+async function handleSend(event) {
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
 const prompt = input.value.trim();
-if (!prompt || sendBtn.disabled) return;
+if (activeRequest) {
+if (event && event.type === 'click') activeRequest.abort(); // the button reads Stop while a request runs
+return;
+}
+if (!prompt) return;
 let thread = state.threads.find(t => t.id === state.activeThreadId);
 if (!thread) {
 createNewThread();
@@ -821,26 +911,23 @@ const model = document.getElementById('modelSelect').value;
 const statusEl = document.getElementById('engineStatus');
 let replyText = '';
 let generatedArtifact = false;
-sendBtn.disabled = true;
-sendBtn.textContent = 'Thinking…';
+let stopped = false;
+let isError = false;
+activeRequest = new AbortController();
+sendBtn.textContent = 'Stop ■';
 statusEl.textContent = `Connecting to ${model}…`;
 try {
 if (model === 'cloudflare-worker') {
 const endpoint = normalizeWorkerUrl(state.workerUrl);
 statusEl.textContent = 'Connecting to Cloudflare Worker…';
-const res = await fetchWithTimeout(endpoint, {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
+replyText = await requestWorkerReply(endpoint, {
 model: 'gemini-3.8-flash',
 stream: true,
 messages: [
 { role: 'system', content: state.systemPrompt },
-...thread.messages.map(m => ({ role: m.role, content: m.content }))
+...thread.messages.filter(m => !m.isError).map(m => ({ role: m.role, content: m.content }))
 ]
-})
-});
-replyText = await readWorkerReply(res);
+}, activeRequest.signal, text => { statusEl.textContent = text; });
 } else {
 // Built-in offline sandbox: no network request is made.
 if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('calculator') || prompt.toLowerCase().includes('html')) {
@@ -861,16 +948,29 @@ replyText = `Offline sandbox response for: "${prompt}". Select Cloudflare Worker
 }
 } catch (error) {
 console.error('OpenClaude request failed:', error);
-replyText = `**Connection error**\n\n${error.message || 'Something went wrong while contacting the selected provider.'}`;
+if (error && error.stopped) {
+stopped = true;
+statusEl.textContent = 'Engine: Stopped';
+} else {
+isError = true;
+replyText = `**Couldn't get a reply**\n\n${error.message || 'Something went wrong while contacting the selected provider.'}\n\nSend your message again to retry, or open Settings to check the Worker URL.`;
 statusEl.textContent = 'Engine: Connection failed';
+}
 } finally {
+activeRequest = null;
 sendBtn.disabled = false;
 sendBtn.textContent = 'Send ↑';
+}
+if (stopped) {
+saveState();
+renderChat();
+return;
 }
 thread.messages.push({
 role: 'assistant',
 content: replyText,
-hasArtifact: generatedArtifact
+hasArtifact: generatedArtifact,
+isError
 });
 if (!statusEl.textContent.includes('failed')) statusEl.textContent = 'Engine: Ready';
 saveState();
