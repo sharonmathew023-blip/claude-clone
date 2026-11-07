@@ -25,3 +25,9 @@ body{height:100dvh;overflow:hidden;-webkit-font-smoothing:antialiased}
 /* Higher-specificity overrides for legacy mobile rules. */
 #sendBtn.send-btn{display:inline-flex!important;visibility:visible!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;flex:0 0 36px!important}
 @media(max-width:860px){#modelSelect.model-selector{display:block!important;max-width:38vw!important;min-width:0!important;padding-right:12px!important;font-size:10px!important}}
+
+/* Keep the warm obsidian palette above legacy black mobile declarations. */
+html,body{background:var(--bg-canvas)!important;color:var(--text-primary)!important}
+.app-shell,.main-view,.chat-scroll,.topbar{background:var(--bg-canvas)!important}
+.sidebar{background:var(--bg-surface)!important}
+@media(max-width:860px){#modelSelect.model-selector{width:125px!important;max-width:38vw!important}}
