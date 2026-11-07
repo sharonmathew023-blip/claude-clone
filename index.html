@@ -642,6 +642,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 @media(prefers-reduced-motion:reduce){.chat-container.chat-entering{animation:none}}
 
 </style>
+<link rel="stylesheet" href="styles.css?v=20261107">
 </head>
 <body>
 <div class="app-shell">
@@ -653,6 +654,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
     </button>
     <button class="drawer-close-btn" id="closeSidebarBtn" aria-label="Close menu" title="Close">×</button>
   </div>
+  <button class="drawer-chat-btn sidebar-new-chat" id="newChatBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>New conversation</span></button>
   <input type="search" class="search-box drawer-search-input" id="searchInput" placeholder="Search conversations..." />
   <div class="drawer-scroll">
     <section class="drawer-section pinned-section-dynamic" id="pinnedSection" hidden><div class="drawer-section-label">Pinned</div><div id="pinnedThreadList"></div></section>
@@ -662,7 +664,6 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
     </section>
   </div>
   <div class="drawer-bottom-bar">
-    <button class="drawer-chat-btn" id="newChatBtn"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"></path></svg><span>Chat</span></button>
     <button class="drawer-avatar-btn" id="openSettingsBtn" aria-label="Settings" title="Settings">SM</button>
     <span id="providerBadge" hidden>Worker</span><span id="themeLabel" hidden>Dark</span>
     <button id="themeToggleBtn" class="drawer-theme-hidden" type="button" aria-label="Toggle theme" title="Toggle theme">Theme</button>
@@ -682,7 +683,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <div class="mobile-nav-right">
 <span id="workingChatName" class="working-chat-name">New Conversation</span>
 <button class="icon-btn mobile-history-btn" id="mobileHistoryBtn" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
-<button class="icon-btn chat-new-top-btn" id="topNewChatBtn" title="New chat" aria-label="New chat">＋</button><button class="icon-btn chat-menu-top-btn" id="chatMenuBtn" title="Chat options" aria-label="Chat options">⋮</button>
+<button class="icon-btn chat-menu-top-btn" id="chatMenuBtn" title="Chat options" aria-label="Chat options">⋮</button>
 <button class="icon-btn desktop-artifact-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
 </div>
 </header>
@@ -692,13 +693,13 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 </div>
 <div class="composer-wrap">
 <div class="composer-box">
-<textarea id="promptInput" class="composer-textarea" enterkeyhint="send" placeholder="Ask OpenClaud" aria-label="Message"></textarea>
+<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Ask OpenClaud" aria-label="Message"></textarea>
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
 <div id="attachmentPreview" class="attachment-preview"></div>
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
 <button class="icon-btn mobile-mic-btn" id="mobileMicBtn" type="button" title="Dictate message" aria-label="Dictate message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8"/></svg></button>
-<button class="send-btn" id="sendBtn">Send ↑</button>
+<button class="send-btn" id="sendBtn" type="button" aria-label="Send message" title="Send message">↑</button>
 <button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice input" aria-label="Start voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
 </div>
 </div>
@@ -1056,6 +1057,10 @@ container.innerHTML = `
 <div class="starter-card" data-prompt="Explain how a Cloudflare Worker keeps an API key private.">
 <h4>🔒 Private API Key</h4>
 <p>Your key stays in Cloudflare Secrets</p>
+</div>
+<div class="starter-card" data-prompt="Give me a practical 7-day plan to improve my web design skills, with one small project each day.">
+<h4>🎨 Creative Practice</h4>
+<p>Turn ideas into a week of small projects</p>
 </div>
 </div>
 </div>
@@ -1593,7 +1598,7 @@ function openChatMenu(){
  ];actions.forEach(([label,fn],i)=>{const b=document.createElement('button');b.textContent=label;if(i===6)b.className='danger';b.onclick=()=>{closeChatMenu();fn();};menu.appendChild(b);});menu.hidden=false;
 }
 document.getElementById('chatMenuBtn').addEventListener('click',e=>{e.stopPropagation();const m=document.getElementById('chatOptionsMenu');if(m.hidden)openChatMenu();else closeChatMenu();});
-document.getElementById('topNewChatBtn').addEventListener('click',()=>{closeChatMenu();createNewThread();});
+
 document.addEventListener('click',e=>{if(!e.target.closest('#chatOptionsMenu')&&!e.target.closest('#chatMenuBtn'))closeChatMenu();});
 // Mobile history control opens the existing conversation drawer.
 
