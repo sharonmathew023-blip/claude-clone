@@ -629,6 +629,8 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
  .drawer-backdrop{display:none!important}
 }
 
+
+.working-chat-name{min-width:0;max-width:min(38vw,280px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#b8c0ce;font:500 13px/1.2 var(--font-sans)}.chat-new-top-btn,.chat-menu-top-btn{width:38px;min-width:38px;height:38px;min-height:38px;border:0;border-radius:50%;background:#242424;color:#fff;font-size:24px}.chat-menu-top-btn{font-size:25px}.chat-options-menu{position:fixed;z-index:150;right:12px;top:62px;width:min(290px,calc(100vw - 24px));max-height:75dvh;overflow:auto;padding:7px;background:#171717;border:1px solid #333;border-radius:14px;box-shadow:0 16px 50px #0009}.chat-options-menu[hidden]{display:none}.chat-options-menu button{width:100%;min-height:43px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#f4f4f4;text-align:left;font:450 14px var(--font-sans)}.chat-options-menu button:active{background:#303030}.chat-options-menu button.danger{color:#ff8178}.pinned-section-dynamic{padding:8px 0 6px}.pinned-chat-item{width:100%;height:38px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#ddd;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:14px var(--font-sans)}.pinned-chat-item.active{background:#252525;color:#fff}@media(max-width:860px){.working-chat-name{max-width:27vw}.chat-options-menu{top:62px}.mobile-nav-right{gap:5px}}
 </style>
 </head>
 <body>
@@ -643,7 +645,8 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
   </div>
   <input type="search" class="search-box drawer-search-input" id="searchInput" placeholder="Search conversations..." />
   <div class="drawer-scroll">
-    <section class="drawer-section chats-section">
+    <section class="drawer-section pinned-section-dynamic" id="pinnedSection" hidden><div class="drawer-section-label">Pinned</div><div id="pinnedThreadList"></div></section>
+     <section class="drawer-section chats-section">
       <div class="drawer-section-label">Chats</div>
       <div class="thread-list" id="threadList"></div>
     </section>
@@ -1075,7 +1078,7 @@ state.activeThreadId = id;
 saveState();
 renderSidebar();
 renderChat();
-if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('open');
+if (window.matchMedia('(max-width: 860px)').matches) closeDrawer();
 }
 // Read stored data defensively so one damaged localStorage value cannot blank the app.
 function readStoredState() {
@@ -1440,6 +1443,24 @@ renderChat();
 if (generatedArtifact) openArtifactPane();
 }
 
+function currentThread(){return state.threads.find(t=>t.id===state.activeThreadId);}
+function closeChatMenu(){const m=document.getElementById('chatOptionsMenu');if(m)m.hidden=true;}
+function openChatMenu(){
+ const menu=document.getElementById('chatOptionsMenu'),thread=currentThread();if(!thread)return;menu.innerHTML='';
+ const actions=[
+ ['Rename chat',()=>{const title=prompt('Chat name:',thread.title);if(title&&title.trim()){thread.title=title.trim().slice(0,80);saveState();renderSidebar();renderChat();}}],
+ ['Share',async()=>{const url=location.href.split('#')[0]+'#chat='+encodeURIComponent(thread.id);try{if(navigator.share)await navigator.share({title:thread.title,url});else{await navigator.clipboard.writeText(url);alert('Chat link copied.');}}catch(e){}}],
+ [thread.pinned?'Unpin chat':'Pin chat',()=>{thread.pinned=!thread.pinned;saveState();renderSidebar();}],
+ [thread.locked?'Unlock chat':'Lock chat',()=>{if(thread.locked){const p=prompt('Enter chat password:');if(p===thread.lockPassword){thread.locked=false;thread.lockPassword='';saveState();renderChat();}else if(p!==null)alert('Wrong password.');}else{const p=prompt('Create a password for this chat:');if(p){thread.locked=true;thread.lockPassword=p;saveState();renderChat();}}}],
+ ['Uploaded files',()=>{const f=[...new Set(thread.messages.flatMap(m=>m.attachments||[]))];alert(f.length?'Files in this chat:\n\n'+f.join('\n'):'No files uploaded in this chat.');}],
+ ['Find in chat',()=>{const q=prompt('Find a phrase:');if(!q)return;const rows=[...document.querySelectorAll('.msg-row')],found=rows.filter(x=>x.textContent.toLowerCase().includes(q.toLowerCase()));if(found.length){found[0].scrollIntoView({behavior:'smooth',block:'center'});found[0].style.outline='2px solid #9aabff';setTimeout(()=>found[0].style.outline='',2200);}else alert('No matches found.');}],
+ ['Add to home',async()=>{const url=location.href.split('#')[0]+'#chat='+encodeURIComponent(thread.id);try{if(navigator.share)await navigator.share({title:thread.title,url});else{await navigator.clipboard.writeText(url);alert('Chat link copied. Open it in your browser and choose Add to Home Screen.');}}catch(e){}}],
+ ['Delete',()=>{if(!confirm('Delete this chat? This cannot be undone.'))return;state.threads=state.threads.filter(t=>t.id!==thread.id);if(!state.threads.length)createNewThread();else state.activeThreadId=state.threads[0].id;saveState();renderSidebar();renderChat();}]
+ ];actions.forEach(([label,fn],i)=>{const b=document.createElement('button');b.textContent=label;if(i===7)b.className='danger';b.onclick=()=>{closeChatMenu();fn();};menu.appendChild(b);});menu.hidden=false;
+}
+document.getElementById('chatMenuBtn').addEventListener('click',e=>{e.stopPropagation();const m=document.getElementById('chatOptionsMenu');if(m.hidden)openChatMenu();else closeChatMenu();});
+document.getElementById('topNewChatBtn').addEventListener('click',()=>{closeChatMenu();createNewThread();});
+document.addEventListener('click',e=>{if(!e.target.closest('#chatOptionsMenu')&&!e.target.closest('#chatMenuBtn'))closeChatMenu();});
 // Mobile history control opens the existing conversation drawer.
 
 document.getElementById('getPlusBtn').addEventListener('click', () => {
