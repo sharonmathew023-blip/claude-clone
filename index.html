@@ -552,7 +552,7 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
   <div class="image-workspace-inner">
     <div class="hero-spark">✦</div>
     <h2>Create an image</h2>
-    <p class="image-workspace-sub">Powered by Nano Banana 2 · Gemini 3.1 Flash Image</p>
+    <p class="image-workspace-sub">Powered by Nano Banana 2 · Gemini 3.1 Flash Image. Google API usage limits and pricing apply.</p>
     <div class="image-result-card" id="imageResultCard">
       <img id="generatedImage" alt="AI-generated image" />
       <div class="image-result-note" id="imageResultNote"></div>
@@ -1281,6 +1281,7 @@ throw new Error(message);
 const mime = data.mimeType || 'image/png';
 const dataUrl = 'data:' + mime + ';base64,' + data.imageData;
 const image = document.getElementById('generatedImage');
+image.style.display = 'block';
 image.src = dataUrl;
 const extension = mime.split('/')[1] || 'png';
 const download = document.getElementById('downloadGeneratedImage');
@@ -1294,6 +1295,7 @@ status.textContent = 'Engine: Image generated';
 } catch (error) {
 status.textContent = 'Engine: Image generation failed';
 card.style.display = 'block';
+document.getElementById('generatedImage').style.display = 'none';
 document.getElementById('imageResultNote').textContent = error.name === 'AbortError'
 ? 'Generation timed out. Try again with a simpler prompt.'
 : error.message || 'Something went wrong.';
