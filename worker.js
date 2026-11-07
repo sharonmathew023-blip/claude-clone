@@ -166,6 +166,8 @@ export default {
     if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
       return fail(404, "OpenClaude Gemini proxy is running. Use POST /chat/completions.");
     }
+    if (!env.ACCESS_TOKEN) return fail(503, "Missing ACCESS_TOKEN Worker secret. Add it in Cloudflare Worker Settings > Variables and Secrets.");
+    if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
     if (!env.GEMINI_API_KEY) {
       return fail(500, "Missing GEMINI_API_KEY Worker secret. Add it in Cloudflare Worker Settings > Variables and Secrets.");
     }
@@ -463,7 +465,8 @@ function toOpenAIStream(upstreamBody, model) {
 
 function corsFor(request, env) {
   const origin = request.headers.get("Origin");
-  const list = String(env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const configured = String(env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter((s) => s && s !== "*");
+  const list = configured.length ? configured : ["https://sharonmathew023-blip.github.io"];
   const headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
@@ -471,15 +474,11 @@ function corsFor(request, env) {
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
-  if (!list.length || list.includes("*")) {
-    headers["Access-Control-Allow-Origin"] = "*";
-    return { headers, allowed: true };
-  }
   if (origin && list.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
     return { headers, allowed: true };
   }
-  return { headers, allowed: !origin }; // callers without an Origin header are not browsers
+  return { headers, allowed: !origin }; // non-browser requests still require the bearer token on private routes
 }
 
 function errorType(status) {
