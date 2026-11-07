@@ -68,7 +68,7 @@ export default {
         const source = await response.text();
         if (source.length > 2_000_000) return fail(413, "That page is too large to inspect.");
         const page = extractPageText(source, type);
-        return reply({ ok: true, url: target.toString(), title: page.title, content: page.content.slice(0, 24000) });
+        return reply({ ok: true, url: target.toString(), title: page.title, content: page.content.slice(0, 18000), html: page.html.slice(0, 30000) });
       } catch (error) {
         return fail(502, error.message || "Website inspection failed.");
       }
@@ -214,7 +214,7 @@ function isPublicWebHost(hostname) {
 }
 
 function extractPageText(source, contentType) {
-  if (/text\/plain/i.test(contentType)) return { title: "Text page", content: source.replace(/\s+/g, " ").trim() };
+  if (/text\/plain/i.test(contentType)) return { title: "Text page", content: source.replace(/\s+/g, " ").trim(), html: "" };
   const title = (source.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,""])[1]
     .replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
   const content = source
@@ -225,7 +225,14 @@ function extractPageText(source, contentType) {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
-  return { title: title || "Website", content };
+  const html = source
+    .replace(/<!--[\\s\\S]*?-->/g, " ")
+    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, " ")
+    .replace(/<iframe\\b[^>]*>[\\s\\S]*?<\\/iframe>/gi, " ")
+    .replace(/\\son[a-z]+\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    .slice(0, 30000);
+  return { title: title || "Website", content, html };
 }
 
 /* ---------- request translation ---------- */
