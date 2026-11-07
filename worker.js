@@ -40,6 +40,64 @@ export default {
 
     const path = url.pathname.replace(/\/+$/, "");
 
+    // Composio connector routes. The project API key never leaves this Worker.
+    if (path.startsWith("/composio/")) {
+      if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare > Worker > Settings > Variables and Secrets, then deploy.");
+      const api = "https://backend.composio.dev/api/v3.1";
+      const callComposio = async (endpoint, options = {}) => {
+        const res = await fetch(api + endpoint, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": env.COMPOSIO_API_KEY,
+            ...(options.headers || {}),
+          },
+        });
+        const body = await res.text();
+        let data = {};
+        try { data = body ? JSON.parse(body) : {}; } catch { data = { message: body.slice(0, 300) }; }
+        if (!res.ok) throw new Error(data.message || data.error || `Composio returned HTTP ${res.status}.`);
+        return data;
+      };
+
+      try {
+        if (request.method === "POST" && path === "/composio/session") {
+          const created = await callComposio("/tool_router/session", {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: "openclaude-primary-user",
+              toolkits: { enabled: ["github"] },
+              manage_connections: { enabled: true, enable_connection_removal: true },
+            }),
+          });
+          return reply({ ok: true, sessionId: created.session_id, toolkits: created.tool_router_tools || [] });
+        }
+
+        if (request.method === "POST" && path === "/composio/connect") {
+          const input = await request.json().catch(() => ({}));
+          const sessionId = String(input.sessionId || "");
+          const toolkit = String(input.toolkit || "github").toLowerCase();
+          if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) return fail(400, "A valid Composio session is required.");
+          if (toolkit !== "github") return fail(400, "This first connector build currently supports GitHub only.");
+          const linked = await callComposio(`/tool_router/session/${encodeURIComponent(sessionId)}/link`, {
+            method: "POST",
+            body: JSON.stringify({ toolkit, callback_url: "https://sharonmathew023-blip.github.io/claude-clone/" }),
+          });
+          return reply({ ok: true, redirectUrl: linked.redirect_url, connectedAccountId: linked.connected_account_id });
+        }
+
+        if (request.method === "GET" && path === "/composio/status") {
+          const sessionId = String(url.searchParams.get("sessionId") || "");
+          if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) return fail(400, "A valid Composio session is required.");
+          const status = await callComposio(`/tool_router/session/${encodeURIComponent(sessionId)}/toolkits`);
+          return reply({ ok: true, data: status });
+        }
+        return fail(404, "Unknown Composio route.");
+      } catch (error) {
+        return fail(502, error.message || "Composio request failed.");
+      }
+    }
+
     if (request.method === "GET" && (path === "" || path === "/health")) {
       return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
     }
