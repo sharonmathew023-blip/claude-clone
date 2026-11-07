@@ -545,6 +545,38 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:600px){.topbar{height:54px;padding:0 12px}.chat-scroll{padding:20px 14px 28px}.composer-wrap{padding:9px 12px max(12px,env(safe-area-inset-bottom))}.hero-empty{margin:6vh auto 18px}.chat-container{gap:20px}}
 
+
+/* Mobile reference layout: native-feeling black chat surface */
+.mobile-nav-left,.mobile-nav-right{display:flex;align-items:center;gap:10px}.mobile-nav-right{margin-left:auto}
+.mobile-menu-btn,.mobile-history-btn{width:40px;height:40px;min-width:40px;min-height:40px;border:0;border-radius:50%;background:#242424;color:#fff}
+.mobile-menu-btn svg,.mobile-history-btn svg,.get-plus-btn svg,.mobile-mic-btn svg,.voice-mode-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.get-plus-btn{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;background:#202735;color:#c5d8ff;font:600 14px var(--font-sans)}.get-plus-btn svg{width:18px;height:18px;color:#78aaff;fill:currentColor;stroke:none}
+.mobile-nav-left{display:flex}.mobile-nav-right{display:flex}.mobile-mic-btn,.voice-mode-btn{display:none}
+.home-indicator{display:none}
+@media(max-width:860px){
+ html,body,.app-shell,.main-view{background:#000!important;color:#f5f5f5;height:100dvh;min-height:100dvh}
+ .app-shell{background:#000!important}.main-view{position:relative;min-width:0}
+ .topbar{height:58px;min-height:58px;padding:0 15px;background:#000!important;border:0;gap:12px}
+ .model-selector,.desktop-artifact-btn{display:none!important}
+ .mobile-menu-btn,.mobile-history-btn{background:#242424;color:#fff;border:0}
+ .chat-scroll{background:#000!important;padding:0 14px 18px;}
+ .chat-container{gap:24px}.hero-empty{display:none!important}
+ .composer-wrap{position:relative;flex-shrink:0;padding:0 16px max(12px,env(safe-area-inset-bottom));background:#000!important;border:0}
+ .composer-box{width:100%;max-width:620px;min-height:54px;margin:0 auto;background:#1e1e1e!important;border:0!important;border-radius:999px!important;box-shadow:none!important;padding:6px 8px 6px 12px;display:flex;flex-direction:row;align-items:center;gap:8px}
+ .composer-textarea{flex:1;min-width:0;min-height:38px;max-height:100px;padding:9px 2px;background:transparent;color:#fff;font:400 15px/1.35 Roboto,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0}
+ .composer-textarea::placeholder{color:#a6a6a6;opacity:1}
+ .attachment-row{order:-1;display:flex;align-items:center;margin:0;flex:0 0 auto}
+ .attach-btn{width:34px;height:38px;min-width:34px;padding:0;border:0;background:transparent!important;color:#fff!important;font:300 27px/1 Arial,sans-serif;display:flex;align-items:center;justify-content:center}
+ .attachment-preview{position:absolute;bottom:62px;left:16px;right:16px;margin:0}
+ .composer-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}
+ .composer-status,.send-btn{display:none!important}
+ .mobile-mic-btn{display:inline-flex;width:36px;height:38px;min-width:36px;min-height:38px;border:0;border-radius:50%;background:transparent;color:#fff}
+ .voice-mode-btn{display:inline-flex;width:42px;height:42px;min-width:42px;min-height:42px;align-items:center;justify-content:center;border:0;border-radius:50%;background:#f06435;color:#fff}
+ .voice-mode-btn svg{width:21px;height:21px;stroke-width:2.1}
+ .home-indicator{display:block;width:108px;height:4px;border-radius:99px;background:#fff;margin:12px auto 0;opacity:.95}
+ .msg-user{max-width:90%}.msg-assistant{color:#f1f1f1}
+}
+@media(max-width:380px){.topbar{padding:0 12px}.get-plus-btn{padding:0 11px}.composer-wrap{padding-left:12px;padding-right:12px}}
 </style>
 </head>
 <body>
@@ -577,30 +609,35 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 </aside>
 <main class="main-view">
 <header class="topbar">
-<button class="icon-btn" id="openSidebarBtn" title="Menu">☰</button>
-<select class="model-selector" id="modelSelect">
+<div class="mobile-nav-left">
+<button class="icon-btn mobile-menu-btn" id="openSidebarBtn" title="Open menu" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+<button class="get-plus-btn" id="getPlusBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg><span>Get Plus</span></button>
+</div>
+<select class="model-selector" id="modelSelect" aria-label="AI model">
 <option value="cloudflare-worker">Cloudflare Worker (Gemini)</option>
 <option value="offline-synth">Offline Sandbox (No AI connection)</option>
 </select>
-<button class="icon-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
+<div class="mobile-nav-right">
+<button class="icon-btn mobile-history-btn" id="mobileHistoryBtn" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+<button class="icon-btn desktop-artifact-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
+</div>
 </header>
 <div class="chat-scroll" id="chatScroll">
 <div class="chat-container" id="chatContainer"></div>
 </div>
 <div class="composer-wrap">
 <div class="composer-box">
-<textarea
-id="promptInput"
-class="composer-textarea"
-enterkeyhint="send"
-placeholder="Ask anything, write code, or generate an interactive HTML artifact..."
-></textarea>
-<div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn">＋ Attach files</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
+<textarea id="promptInput" class="composer-textarea" enterkeyhint="send" placeholder="Ask OpenClaud" aria-label="Message"></textarea>
+<div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
+<div id="attachmentPreview" class="attachment-preview"></div>
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
+<button class="icon-btn mobile-mic-btn" id="mobileMicBtn" type="button" title="Dictate message" aria-label="Dictate message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8"/></svg></button>
 <button class="send-btn" id="sendBtn">Send ↑</button>
+<button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice input" aria-label="Start voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
 </div>
 </div>
+<div class="home-indicator" aria-hidden="true"></div>
 </div>
 </main>
 <aside class="artifact-pane" id="artifactPane">
@@ -1353,6 +1390,27 @@ saveState();
 renderChat();
 if (generatedArtifact) openArtifactPane();
 }
+
+// Mobile history control opens the existing conversation drawer.
+document.getElementById('mobileHistoryBtn').addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
+document.getElementById('getPlusBtn').addEventListener('click', () => {
+  document.getElementById('openSettingsBtn').click();
+});
+function startMobileDictation(sendAfter = false) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { document.getElementById('engineStatus').textContent = 'Voice input is not supported in this browser.'; return; }
+  const recognition = new SpeechRecognition();
+  recognition.lang = navigator.language || 'en-US'; recognition.interimResults = true; recognition.continuous = false;
+  const input = document.getElementById('promptInput');
+  const start = input.value ? input.value + ' ' : '';
+  recognition.onresult = event => { let text = ''; for (let i=event.resultIndex;i<event.results.length;i++) text += event.results[i][0].transcript; input.value = start + text; };
+  recognition.onerror = () => { document.getElementById('engineStatus').textContent = 'Voice input unavailable.'; };
+  recognition.onend = () => { if (sendAfter && input.value.trim()) handleSend(); };
+  recognition.start();
+}
+document.getElementById('mobileMicBtn').addEventListener('click', () => startMobileDictation(false));
+document.getElementById('voiceModeBtn').addEventListener('click', () => startMobileDictation(true));
+
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
 function usesTouchKeyboard() {
