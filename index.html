@@ -573,7 +573,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
  .mobile-mic-btn{display:inline-flex;width:36px;height:38px;min-width:36px;min-height:38px;border:0;border-radius:50%;background:transparent;color:#fff}
  .voice-mode-btn{display:inline-flex;width:42px;height:42px;min-width:42px;min-height:42px;align-items:center;justify-content:center;border:0;border-radius:50%;background:#f06435;color:#fff}
  .voice-mode-btn svg{width:21px;height:21px;stroke-width:2.1}
- .home-indicator{display:block;width:108px;height:4px;border-radius:99px;background:#fff;margin:12px auto 0;opacity:.95}
+ .home-indicator{display:none!important}
  .msg-user{max-width:90%}.msg-assistant{color:#f1f1f1}
 }
 @media(max-width:380px){.topbar{padding:0 12px}.get-plus-btn{padding:0 11px}.composer-wrap{padding-left:12px;padding-right:12px}}
@@ -975,7 +975,7 @@ state.activeThreadId = thread.id;
 saveState();
 renderSidebar();
 renderChat();
-document.getElementById('sidebar').classList.remove('open');
+closeDrawer();
 });
 list.appendChild(item);
 });
@@ -984,6 +984,8 @@ function renderChat() {
 const container = document.getElementById('chatContainer');
 const thread = state.threads.find(t => t.id === state.activeThreadId);
 container.innerHTML = '';
+document.getElementById('workingChatName').textContent = thread ? thread.title : 'New Conversation';
+if (thread && thread.locked) { container.innerHTML='<div class="hero-empty"><h2 class="hero-greeting">Chat locked</h2><p class="hero-sub">Use the three-dot menu to unlock this chat.</p></div>'; return; }
 if (!thread || thread.messages.length === 0) {
 container.innerHTML = `
 <div class="hero-empty">
@@ -1037,12 +1039,7 @@ copyButton.addEventListener('click', async () => {
   setTimeout(() => { copyButton.textContent = 'Copy'; }, 1400);
 });
 actions.appendChild(copyButton);
-if (m.role === 'assistant') {
-  const reuseButton = document.createElement('button');
-  reuseButton.className = 'msg-action-btn'; reuseButton.type = 'button'; reuseButton.textContent = 'Use as prompt';
-  reuseButton.addEventListener('click', () => { const input = document.getElementById('promptInput'); input.value = m.content || ''; input.focus(); });
-  actions.appendChild(reuseButton);
-}
+
 row.appendChild(actions);
 container.appendChild(row);
 });
