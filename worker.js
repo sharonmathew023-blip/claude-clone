@@ -4,7 +4,6 @@
 // Required secret:
 //   GEMINI_API_KEY
 // Optional settings (Worker > Settings > Variables and Secrets):
-//   ACCESS_TOKEN     secret. When set, callers must send "Authorization: Bearer <token>"
 //   ALLOWED_ORIGINS  comma-separated site origins. When unset, any site may call
 //   DEFAULT_MODEL    model used when a request does not name one
 //   FALLBACK_MODEL   first backup model, tried when the requested one is busy
@@ -43,10 +42,6 @@ export default {
 
     if (request.method === "GET" && (path === "" || path === "/health")) {
       return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
-    }
-
-    if (!authorized(request, env)) {
-      return fail(401, "Missing or wrong access token. Put it in Settings > Access token.");
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
@@ -333,19 +328,6 @@ function corsFor(request, env) {
     return { headers, allowed: true };
   }
   return { headers, allowed: !origin }; // callers without an Origin header are not browsers
-}
-
-function authorized(request, env) {
-  if (!env.ACCESS_TOKEN) return true; // open, same as before
-  const m = /^Bearer (.+)$/.exec(request.headers.get("Authorization") || "");
-  return Boolean(m) && safeEqual(m[1], String(env.ACCESS_TOKEN));
-}
-
-function safeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 function errorType(status) {
