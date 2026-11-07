@@ -1394,11 +1394,11 @@ if (generatedArtifact) openArtifactPane();
 // Mobile history control opens the existing conversation drawer.
 document.getElementById('mobileHistoryBtn').addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
 document.getElementById('getPlusBtn').addEventListener('click', () => {
-  document.getElementById('openSettingsBtn').click();
+  alert('OpenClaude Plus is not available yet.');
 });
 function startMobileDictation(sendAfter = false) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { document.getElementById('engineStatus').textContent = 'Voice input is not supported in this browser.'; return; }
+  if (!SpeechRecognition) { alert('Voice input is not supported in this browser.'); return; }
   const recognition = new SpeechRecognition();
   recognition.lang = navigator.language || 'en-US'; recognition.interimResults = true; recognition.continuous = false;
   const input = document.getElementById('promptInput');
