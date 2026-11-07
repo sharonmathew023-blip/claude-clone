@@ -1,3 +1,4 @@
+// OpenClaude Gemini proxy. Deployed from GitHub via Cloudflare Workers Builds.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
