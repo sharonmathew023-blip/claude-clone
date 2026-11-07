@@ -670,7 +670,9 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <option value="offline-synth">Offline Sandbox (No AI connection)</option>
 </select>
 <div class="mobile-nav-right">
+<span id="workingChatName" class="working-chat-name">New Conversation</span>
 <button class="icon-btn mobile-history-btn" id="mobileHistoryBtn" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+<button class="icon-btn chat-new-top-btn" id="topNewChatBtn" title="New chat" aria-label="New chat">＋</button><button class="icon-btn chat-menu-top-btn" id="chatMenuBtn" title="Chat options" aria-label="Chat options">⋮</button>
 <button class="icon-btn desktop-artifact-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
 </div>
 </header>
@@ -1098,6 +1100,8 @@ return structuredClone(defaultState);
 }
 // Replace the original state only when the page first loads.
 state = readStoredState();
+const requestedChat=(location.hash.match(/(?:^#|&)chat=([^&]+)/)||[])[1]; if(requestedChat){const target=state.threads.find(t=>t.id===decodeURIComponent(requestedChat));if(target)state.activeThreadId=target.id;}
+
 function normalizeWorkerUrl(value) {
 const raw = (value || '').trim();
 if (!raw) throw new Error('Add your Cloudflare Worker URL in Settings.');
