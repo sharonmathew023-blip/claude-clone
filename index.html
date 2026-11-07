@@ -1394,7 +1394,8 @@ if (generatedArtifact) openArtifactPane();
 // Mobile history control opens the existing conversation drawer.
 document.getElementById('mobileHistoryBtn').addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
 document.getElementById('getPlusBtn').addEventListener('click', () => {
-  alert('OpenClaude Plus is not available yet.');
+  const whatsappUrl = 'https://wa.me/919778296916?text=' + encodeURIComponent('I Love You 😍❤️');
+  window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
 });
 function startMobileDictation(sendAfter = false) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
