@@ -577,36 +577,104 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
  .msg-user{max-width:90%}.msg-assistant{color:#f1f1f1}
 }
 @media(max-width:380px){.topbar{padding:0 12px}.get-plus-btn{padding:0 11px}.composer-wrap{padding-left:12px;padding-right:12px}}
+
+/* Mobile drawer recreation */
+.sidebar{background:#0a0a0a;color:#f7f7f7;border-right:1px solid #252525}
+.drawer-header{height:70px;flex:0 0 70px;padding:0 17px 0 20px;display:flex;align-items:center;justify-content:space-between;border:0}
+.drawer-header .brand-title{font:750 25px/1 -apple-system,BlinkMacSystemFont,"SF Pro Display",Roboto,sans-serif;letter-spacing:-1.1px;color:#fff}
+.drawer-search-btn,.drawer-close-btn{width:40px;height:40px;border:0;border-radius:50%;background:#202020;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.drawer-search-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.drawer-close-btn{display:none;font-size:25px}
+.drawer-search-input{display:none;margin:0 16px 10px;width:calc(100% - 32px);background:#191919;border:1px solid #303030;color:#fff}
+.drawer-scroll{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 10px 12px;scrollbar-width:none}
+.drawer-scroll::-webkit-scrollbar{display:none}
+.drawer-tools{display:flex;flex-direction:column;gap:2px;padding:2px 0 14px}
+.drawer-nav-item,.pinned-item{height:46px;width:100%;display:flex;align-items:center;gap:16px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#f5f5f5;text-align:left;font:500 15px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif;cursor:pointer}
+.drawer-nav-item svg,.pinned-item svg{width:21px;height:21px;flex:0 0 21px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.drawer-nav-item:active,.pinned-item:active{background:#202020}
+.drawer-section{padding:7px 0 10px}
+.drawer-section-label{padding:0 13px 7px;color:#858585;font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif;letter-spacing:.02em}
+.pinned-list{display:flex;flex-direction:column;gap:0}
+.pinned-item{height:39px;gap:14px;font-size:14px;font-weight:450;padding-left:13px}
+.pinned-item svg{width:19px;height:19px;flex-basis:19px}
+.pinned-item span,.drawer-nav-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chats-section{padding-top:7px}
+.chats-section .thread-list{padding:0 2px;gap:1px;overflow:visible}
+.chats-section .thread-item{height:38px;min-height:38px;padding:0 11px;border:0;border-radius:9px;color:#a7a7a7;font-size:14px}
+.chats-section .thread-item.active{background:#1c1c1c;color:#fff;box-shadow:none}
+.chats-section .thread-title{max-width:205px}
+.chats-section .star-thread-btn,.chats-section .delete-thread-btn{display:none}
+.drawer-bottom-bar{height:76px;flex:0 0 76px;display:flex;align-items:center;justify-content:space-between;padding:0 17px  max(0px,env(safe-area-inset-bottom));border-top:1px solid #242424;background:#0a0a0a}
+.drawer-chat-btn{height:43px;min-width:106px;padding:0 17px;display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:999px;background:#ed684b;color:#fff;font:650 14px -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif}
+.drawer-chat-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.drawer-avatar-btn{width:42px;height:42px;border:0;border-radius:50%;background:#242424;color:#fff;font:650 14px -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif}
+.drawer-theme-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.drawer-backdrop{display:none}
+@media(max-width:860px){
+ .sidebar{position:fixed;z-index:120;left:0;top:0;bottom:0;width:85vw;max-width:360px;height:100dvh;transform:translateX(-105%);background:#0a0a0a;border:0;border-right:1px solid #252525;box-shadow:none;transition:transform .23s ease}
+ .sidebar.open{transform:translateX(0)}
+ .drawer-backdrop{display:block;position:fixed;z-index:110;inset:0;background:rgba(0,0,0,.57);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .23s ease,visibility .23s ease}
+ .drawer-backdrop.open{opacity:1;visibility:visible}
+ .drawer-header{height:72px;flex-basis:72px}
+ .drawer-close-btn{display:none}
+ .drawer-search-btn{margin-left:auto}
+ .sidebar .brand-title{font-size:25px}
+ .drawer-scroll{padding-left:10px;padding-right:10px}
+ .drawer-bottom-bar{padding-bottom:max(0px,env(safe-area-inset-bottom))}
+}
+@media(min-width:861px){
+ .sidebar{width:290px}
+ .drawer-header{height:68px;flex-basis:68px}
+ .drawer-close-btn{display:none}
+ .drawer-backdrop{display:none!important}
+}
+
 </style>
 </head>
 <body>
 <div class="app-shell">
-<aside class="sidebar" id="sidebar">
-<div class="sidebar-header">
-<div class="brand-title">
-<span>OpenClaude</span>
-<span class="badge-foss">FOSS</span>
-</div>
-<button class="icon-btn" id="closeSidebarBtn" title="Toggle Drawer">✕</button>
-</div>
-<button class="new-chat-btn" id="newChatBtn">+ New Conversation</button>
-<div class="nav-tabs">
-<button class="nav-tab active" data-filter="all">Chats</button>
-<button class="nav-tab" data-filter="starred">Saved</button>
-</div>
-<input type="search" class="search-box" id="searchInput" placeholder="Search conversations..." />
-<div class="thread-list" id="threadList"></div>
-<div class="sidebar-footer">
-<button class="footer-btn" id="openSettingsBtn">
-<span>⚙️ API / Cloudflare Setup</span>
-<span id="providerBadge">Worker</span>
-</button>
-<button class="footer-btn" id="themeToggleBtn">
-<span>🌗 Toggle Theme</span>
-<span id="themeLabel">Dark</span>
-</button>
-</div>
+<aside class="sidebar" id="sidebar" aria-label="Main navigation">
+  <div class="drawer-header">
+    <div class="brand-title"><span>OpenClaude</span></div>
+    <button class="drawer-search-btn" id="sidebarSearchBtn" aria-label="Search chats" title="Search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg>
+    </button>
+    <button class="drawer-close-btn" id="closeSidebarBtn" aria-label="Close menu" title="Close">×</button>
+  </div>
+  <input type="search" class="search-box drawer-search-input" id="searchInput" placeholder="Search conversations..." />
+  <div class="drawer-scroll">
+    <nav class="drawer-tools" aria-label="Workspace">
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg><span>Images</span></button>
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H20v17H5.5A2.5 2.5 0 0 1 3 17.5z"></path><path d="M3 7h17M8 3v4m4-4v4m4-4v4M7 11h9M7 15h9"></path></svg><span>Library</span></button>
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"></path></svg><span>Projects</span></button>
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg><span>Remote</span></button>
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg><span>Scheduled</span></button>
+      <button class="drawer-nav-item" type="button"><svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 4 0v2h2V5a2 2 0 0 1 4 0v4h2a2 2 0 0 1 0 4h-2v2a2 2 0 0 1-4 0v-2h-2v2a2 2 0 0 1-4 0v-2H6a2 2 0 0 1 0-4h2z"></path></svg><span>Plugins</span></button>
+    </nav>
+    <section class="drawer-section pinned-section">
+      <div class="drawer-section-label">Pinned</div>
+      <div class="pinned-list">
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>Creepy Browser Horror Game</span></button>
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>HTML for 3D Games</span></button>
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>PDF upload limits</span></button>
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>Film Title Card Design</span></button>
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>Cinematic Romantic Portrait</span></button>
+        <button class="pinned-item" type="button"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"></path></svg><span>Dumb Deep Questions</span></button>
+      </div>
+    </section>
+    <section class="drawer-section chats-section">
+      <div class="drawer-section-label">Chats</div>
+      <div class="thread-list" id="threadList"></div>
+    </section>
+  </div>
+  <div class="drawer-bottom-bar">
+    <button class="drawer-chat-btn" id="newChatBtn"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"></path></svg><span>Chat</span></button>
+    <button class="drawer-avatar-btn" id="openSettingsBtn" aria-label="Settings" title="Settings">SM</button>
+    <span id="providerBadge" hidden>Worker</span><span id="themeLabel" hidden>Dark</span>
+    <button id="themeToggleBtn" class="drawer-theme-hidden" type="button" aria-label="Toggle theme" title="Toggle theme">Theme</button>
+  </div>
 </aside>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
 <main class="main-view">
 <header class="topbar">
 <div class="mobile-nav-left">
@@ -1392,7 +1460,7 @@ if (generatedArtifact) openArtifactPane();
 }
 
 // Mobile history control opens the existing conversation drawer.
-document.getElementById('mobileHistoryBtn').addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
+
 document.getElementById('getPlusBtn').addEventListener('click', () => {
   const whatsappUrl = 'https://wa.me/919778296916?text=' + encodeURIComponent('I Love You 😍❤️');
   window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
@@ -1451,12 +1519,28 @@ state.filter = btn.dataset.filter;
 renderSidebar();
 });
 });
+
+document.getElementById('sidebarSearchBtn').addEventListener('click', () => {
+  const search = document.getElementById('searchInput');
+  search.style.display = search.style.display === 'block' ? 'none' : 'block';
+  if (search.style.display === 'block') search.focus();
+});
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+function closeDrawer() {
+  document.getElementById('sidebar').classList.remove('open');
+  drawerBackdrop.classList.remove('open');
+}
 document.getElementById('openSidebarBtn').addEventListener('click', () => {
-document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar').classList.add('open');
+  drawerBackdrop.classList.add('open');
 });
-document.getElementById('closeSidebarBtn').addEventListener('click', () => {
-document.getElementById('sidebar').classList.remove('open');
+document.getElementById('mobileHistoryBtn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.add('open');
+  drawerBackdrop.classList.add('open');
 });
+document.getElementById('closeSidebarBtn').addEventListener('click', closeDrawer);
+drawerBackdrop.addEventListener('click', closeDrawer);
+
 document.getElementById('toggleArtifactBtn').addEventListener('click', () => {
 const pane = document.getElementById('artifactPane');
 if (pane.classList.contains('open')) pane.classList.remove('open'); else openArtifactPane();
