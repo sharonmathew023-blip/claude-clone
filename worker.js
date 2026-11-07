@@ -21,7 +21,7 @@ const MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_MESSAGES = 200;
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
-const HEADERS_TIMEOUT_MS = 45_000; // wait for the first response headers, not for the whole stream
+const HEADERS_TIMEOUT_MS = 25_000; // wait for the first response headers, not for the whole stream
 const SAME_MODEL_ATTEMPTS = 2; // one quick retry here; the browser shows the longer retries
 
 export default {
@@ -45,7 +45,19 @@ export default {
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
-      const ids = [env.DEFAULT_MODEL || DEFAULT_MODEL, env.FALLBACK_MODEL].filter(Boolean);
+      let ids = [env.DEFAULT_MODEL || DEFAULT_MODEL, env.FALLBACK_MODEL].filter(Boolean);
+      if (env.GEMINI_API_KEY) {
+        try { // ask Google which models your key can really use right now
+          const res = await fetch(`${GEMINI_BASE}/models?pageSize=100`, { headers: { "x-goog-api-key": env.GEMINI_API_KEY }, signal: AbortSignal.timeout(8000) });
+          if (res.ok) {
+            const j = await res.json();
+            const live = (j.models || [])
+              .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+              .map((m) => String(m.name).replace(/^models\//, ""));
+            if (live.length) ids = live;
+          }
+        } catch { /* keep the static list */ }
+      }
       return reply({ object: "list", data: [...new Set(ids)].map((id) => ({ id, object: "model" })) });
     }
 
