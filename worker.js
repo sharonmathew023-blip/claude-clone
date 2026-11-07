@@ -187,9 +187,9 @@ function partsOf(content) {
     if (typeof item.text === "string") parts.push({ text: item.text });
     if (item.type === "image_url" && item.image_url && typeof item.image_url.url === "string") {
       const match = item.image_url.url.match(/^data:([\w.+-]+\/[\w.+-]+);base64,([A-Za-z0-9+/=]+)$/);
-      if (match && /^(image\/|application\/pdf$)/.test(match[1])) {
-        parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
-      }
+      if (!match) throw new Error("An attachment could not be decoded. Reattach the file and try again.");
+      if (!(/^(image\/[\w.+-]+|application\/pdf)$/.test(match[1]))) throw new Error("Unsupported attachment type: " + match[1]);
+      parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
     }
   }
   return parts.length ? parts : [{ text: "" }];
