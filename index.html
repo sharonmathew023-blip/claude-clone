@@ -1115,25 +1115,32 @@ function extractArtifactFromReply(markdown) {
   const fence = String.fromCharCode(96, 96, 96);
   const pattern = new RegExp(fence + '([a-zA-Z0-9_-]*)[^\\n]*\\n([\\s\\S]*?)\\n' + fence, 'g');
   let match;
-  while ((match = pattern.exec(String(markdown || '')))) blocks.push({ language: (match[1] || '').toLowerCase(), code: match[2].trim() });
-  const htmlBlock = blocks.find(block => /^(html?|xhtml)$/.test(block.language) || /<(?:!doctype\\s+html|html|head|body|main|section|div|button|canvas|svg)\\b/i.test(block.code));
+  while ((match = pattern.exec(String(markdown || '')))) {
+    blocks.push({ language: (match[1] || '').toLowerCase(), code: match[2].trim() });
+  }
+  const htmlBlock = blocks.find(block =>
+    ['html', 'htm', 'xhtml'].includes(block.language) ||
+    new RegExp('<(?:!doctype\\s+html|html|head|body|main|section|div|button|canvas|svg)\\b', 'i').test(block.code)
+  );
   if (!htmlBlock) return null;
   let code = htmlBlock.code;
-  const css = blocks.filter(block => block.language === 'css').map(block => block.code).join('\\n\\n');
-  const js = blocks.filter(block => ['js', 'javascript'].includes(block.language)).map(block => block.code).join('\\n\\n');
-  if (!/<html[\\s>]/i.test(code)) code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
-  if (css && !/<style[\\s>]/i.test(code)) {
-    const style = '<style>\\n' + css + '\\n</style>';
-    code = /<\\/head>/i.test(code) ? code.replace(/<\\/head>/i, style + '</head>') : style + code;
+  const css = blocks.filter(block => block.language === 'css').map(block => block.code).join('\n\n');
+  const js = blocks.filter(block => ['js', 'javascript'].includes(block.language)).map(block => block.code).join('\n\n');
+  if (!new RegExp('<html[\\s>]', 'i').test(code)) {
+    code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
   }
-  if (js && !/<script[\\s>]/i.test(code)) {
-    const script = '<script>\\n' + js + '\\n</script>';
-    code = /<\\/body>/i.test(code) ? code.replace(/<\\/body>/i, script + '</body>') : code + script;
+  if (css && !new RegExp('<style[\\s>]', 'i').test(code)) {
+    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n</style>';
+    const headEnd = code.toLowerCase().indexOf('</head>');
+    code = headEnd >= 0 ? code.slice(0, headEnd) + style + code.slice(headEnd) : style + code;
   }
-  const titleMatch = code.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
-  return { title: titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() || 'Generated Artifact' : 'Generated Artifact', code };
+  if (js && !new RegExp('<script[\\s>]', 'i').test(code)) {
+    const script = '<script>\n' + js.replace(/<\/script/gi, '<\\/script') + '\n</script>';
+    const bodyEnd = code.toLowerCase().indexOf('</body>');
+    code = bodyEnd >= 0 ? code.slice(0, bodyEnd) + script + code.slice(bodyEnd) : code + script;
+  }
+  return { title: 'Generated Artifact', code };
 }
-
 function openArtifactPane() {
 const pane = document.getElementById('artifactPane');
 pane.classList.add('open');
