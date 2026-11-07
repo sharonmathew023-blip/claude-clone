@@ -3,8 +3,8 @@
   const $ = id => document.getElementById(id);
   const KEY = "openclaude_workspace_v2";
   const DEFAULTS = {
-    theme: "dark", provider: "ollama", baseUrl: "http://localhost:11434",
-    model: "llama3.2", systemPrompt: "You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.",
+    theme: "dark", provider: "openai", baseUrl: "https://openclaude-api.sharonmathew023.workers.dev",
+    model: "gemini-2.5-flash", systemPrompt: "You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.",
     activeId: null, threads: []
   };
   let state = loadState();
@@ -17,7 +17,15 @@
   function loadState() {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-      return saved && typeof saved === "object" ? {...DEFAULTS, ...saved, threads:Array.isArray(saved.threads)?saved.threads:[]} : {...DEFAULTS};
+      if (!saved || typeof saved !== "object") return {...DEFAULTS};
+      const merged = {...DEFAULTS, ...saved, threads:Array.isArray(saved.threads)?saved.threads:[]};
+      // Move the first-run Ollama defaults to the hosted Gemini Worker.
+      if (merged.provider === "ollama" && merged.baseUrl === "http://localhost:11434" && merged.model === "llama3.2") {
+        merged.provider = DEFAULTS.provider;
+        merged.baseUrl = DEFAULTS.baseUrl;
+        merged.model = DEFAULTS.model;
+      }
+      return merged;
     } catch { return {...DEFAULTS}; }
   }
   function persist() {
@@ -195,7 +203,7 @@
   }
   function updateUrlHelp(){
     const p=$("providerSelect").value;
-    $("urlHelp").textContent=p==="ollama"?"Ollama server root, usually http://localhost:11434.":p==="openai"?"API root, for example https://api.example.com/v1.":"Demo mode does not use a server.";
+    $("urlHelp").textContent=p==="ollama"?"Ollama server root, usually http://localhost:11434.":p==="openai"?"Cloudflare Worker URL. Gemini is accessed securely through your Worker.":"Demo mode does not use a server.";
     $("baseUrl").disabled=p==="demo";$("modelName").disabled=p==="demo";$("apiKey").disabled=p!=="openai";
   }
   function saveSettings(){
