@@ -548,6 +548,15 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <label>Project System Prompt</label>
 <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
 </div>
+<div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
+<label>App connectors</label>
+<p style="font-size:0.75rem; color:var(--text-muted);">Connect apps through Composio. Your Composio API key stays in Cloudflare.</p>
+<div style="display:flex; gap:8px; flex-wrap:wrap;">
+<button class="footer-btn" type="button" id="connectGithubBtn">Connect GitHub</button>
+<button class="footer-btn" type="button" id="checkConnectorsBtn">Check status</button>
+</div>
+<p id="connectorStatus" style="font-size:0.75rem; color:var(--text-muted);">GitHub: Not connected</p>
+</div>
 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
 <button class="footer-btn" id="exportDataBtn">Export JSON</button>
 <button class="send-btn" id="saveSettingsBtn">Save & Close</button>
@@ -564,6 +573,7 @@ filter: 'all',
 search: '',
 workerUrl: 'https://openclaude-api.sharonmathew023.workers.dev/chat/completions',
 accessToken: '',
+composioSessionId: '',
 model: 'gemini-3.5-flash',
 systemPrompt: 'You are OpenClaude, a helpful, concise, open-source AI assistant.',
 activeArtifact: {
@@ -859,6 +869,36 @@ return e;
 }
 return error;
 }
+async function composioRequest(route, payload) {
+const base = normalizeWorkerUrl(state.workerUrl).replace(/\/chat\/completions\/?$/, '');
+const headers = { 'Content-Type': 'application/json' };
+if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
+const response = await fetch(base + route, { method: payload ? 'POST' : 'GET', headers, body: payload ? JSON.stringify(payload) : undefined });
+const data = await response.json().catch(() => ({}));
+if (!response.ok) throw new Error(data.error?.message || data.error || data.message || ('HTTP ' + response.status));
+return data;
+}
+async function connectGithub() {
+const status = document.getElementById('connectorStatus');
+const button = document.getElementById('connectGithubBtn');
+button.disabled = true; status.textContent = 'Preparing secure GitHub connection…';
+try {
+if (!state.composioSessionId) { const session = await composioRequest('/composio/session', {}); state.composioSessionId = session.sessionId; saveState(); }
+const link = await composioRequest('/composio/connect', { sessionId: state.composioSessionId, toolkit: 'github' });
+if (!link.redirectUrl) throw new Error('Composio did not return an authorization link.');
+status.textContent = 'Opening GitHub authorization…'; window.location.href = link.redirectUrl;
+} catch (error) { status.textContent = 'Connector error: ' + error.message; button.disabled = false; }
+}
+async function checkConnectorStatus() {
+const status = document.getElementById('connectorStatus');
+if (!state.composioSessionId) { status.textContent = 'GitHub: Not connected yet. Tap Connect GitHub.'; return; }
+status.textContent = 'Checking Composio…';
+try {
+const result = await composioRequest('/composio/status?sessionId=' + encodeURIComponent(state.composioSessionId));
+const serialized = JSON.stringify(result.data || {}).toLowerCase();
+status.textContent = serialized.includes('active') || serialized.includes('connected') ? 'GitHub connection detected.' : 'Session ready. Finish GitHub authorization if needed.';
+} catch (error) { status.textContent = 'Status check failed: ' + error.message; }
+}
 function workerHeaders() {
 const headers = { 'Content-Type': 'application/json' };
 if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
@@ -1100,6 +1140,8 @@ document.getElementById('sidebar').classList.remove('open');
 document.getElementById('artifactPane').classList.remove('open');
 }
 });
+document.getElementById('connectGithubBtn').addEventListener('click', connectGithub);
+document.getElementById('checkConnectorsBtn').addEventListener('click', checkConnectorStatus);
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
 state.workerUrl = document.getElementById('workerUrlInput').value.trim();
 state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
