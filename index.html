@@ -1207,8 +1207,8 @@ if (model === 'cloudflare-worker') {
 const endpoint = normalizeWorkerUrl(state.workerUrl);
 statusEl.textContent = 'Connecting to Cloudflare Worker…';
 replyText = await requestWorkerReply(endpoint, [
-{ role: 'system', content: [state.systemPrompt, ...(state.customSkills || []).filter(skill => skill.enabled !== false).map(skill => 'CUSTOM SKILL: ' + skill.name + '\\n' + skill.content)].filter(Boolean).join('\\n\\n') },
-...thread.messages.filter(m => !m.isError).map((m, index, arr) => ({ role: m.role, content: m === arr[arr.length - 1] && m.role === 'user' && attachments.length ? [{ type: 'text', text: m.content + (attachments.some(f => f.kind === 'text') ? '\\n\\n' + attachments.filter(f => f.kind === 'text').map(f => 'FILE: ' + f.name + '\\n' + f.content).join('\\n\\n') : '') }, ...attachments.filter(f => f.kind === 'binary').map(f => ({ type: 'image_url', image_url: { url: f.dataUrl } }))] : m.content }))
+{ role: 'system', content: [state.systemPrompt, ...(state.customSkills || []).filter(skill => skill.enabled !== false).map(skill => 'CUSTOM SKILL: ' + skill.name + '\n' + skill.content)].filter(Boolean).join('\n\n') },
+...thread.messages.filter(m => !m.isError).map((m, index, arr) => ({ role: m.role, content: m === arr[arr.length - 1] && m.role === 'user' && attachments.length ? [{ type: 'text', text: m.content + (attachments.some(f => f.kind === 'text') ? '\n\n' + attachments.filter(f => f.kind === 'text').map(f => 'FILE: ' + f.name + '\n' + f.content).join('\n\n') : '') }, ...attachments.filter(f => f.kind === 'binary').map(f => ({ type: 'image_url', image_url: { url: f.dataUrl } }))] : m.content }))
 ], activeRequest.signal, text => { statusEl.textContent = text; });
 } else {
 // Built-in offline sandbox: no network request is made.
