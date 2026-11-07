@@ -62,7 +62,7 @@
           <div class="composer-right"><span id="typingStatus"></span><button class="send-btn" id="sendBtn" aria-label="Send message">↑</button></div>
         </div>
       </div>
-      <div class="composer-foot">Open-source interface · Bring your own local model</div>
+      <div class="composer-foot">Open-source interface · Powered by Gemini through Cloudflare</div>
     </footer>
   </main>
 
@@ -89,17 +89,17 @@
     <div class="settings-body">
       <div class="settings-section">
         <h3>AI provider</h3>
-        <p>Connect a local Ollama server or an OpenAI-compatible API. This app does not provide model hosting.</p>
+        <p>OpenClaude connects to Gemini through your private Cloudflare Worker. Your Gemini API key stays in Cloudflare.</p>
         <label class="field-label">Provider</label>
-        <select id="providerSelect"><option value="ollama">Ollama (local)</option><option value="openai">OpenAI-compatible API</option><option value="demo">Demo mode (no AI)</option></select>
+        <select id="providerSelect"><option value="ollama">Ollama (local)</option><option value="openai">Cloudflare Worker · Gemini</option><option value="demo">Demo mode (no AI)</option></select>
         <label class="field-label">Base URL</label>
-        <input id="baseUrl" type="url" spellcheck="false" placeholder="http://localhost:11434">
+        <input id="baseUrl" type="url" spellcheck="false" placeholder="https://openclaude-api.sharonmathew023.workers.dev">
         <div class="field-help" id="urlHelp">Ollama API base URL. Usually http://localhost:11434</div>
         <label class="field-label">Model name</label>
         <input id="modelName" type="text" spellcheck="false" placeholder="llama3.2">
         <label class="field-label">API key <span class="optional">optional</span></label>
         <input id="apiKey" type="password" autocomplete="off" placeholder="Only used for this browser session">
-        <div class="field-help">The API key is kept in memory only and is not saved to chat history or local storage.</div>
+        <div class="field-help">Leave this empty. The Gemini key is stored securely as a Cloudflare Worker secret.</div>
         <div class="settings-actions"><button class="secondary-btn" id="testConnection">Test connection</button><span id="testResult" role="status"></span></div>
       </div>
       <div class="settings-section">
