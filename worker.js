@@ -40,6 +40,40 @@ export default {
 
     const path = url.pathname.replace(/\/+$/, "");
 
+    // Public-page reader used by browser-oriented custom skills.
+    if (request.method === "POST" && path === "/browse") {
+      if (!env.ACCESS_TOKEN) return fail(503, "Missing ACCESS_TOKEN Worker secret.");
+      if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
+      try {
+        const input = await request.json().catch(() => ({}));
+        let target;
+        try { target = new URL(String(input.url || "")); } catch { return fail(400, "Enter a valid public website URL."); }
+        if (target.protocol !== "https:" || !isPublicWebHost(target.hostname)) return fail(400, "Only public HTTPS websites can be opened.");
+        let response;
+        for (let hop = 0; hop < 4; hop++) {
+          response = await fetch(target.toString(), {
+            redirect: "manual",
+            headers: { "User-Agent": "OpenClaude-PageReader/1.0", "Accept": "text/html,text/plain;q=0.9" },
+            signal: AbortSignal.timeout(12000)
+          });
+          if (![301,302,303,307,308].includes(response.status)) break;
+          const location = response.headers.get("Location");
+          if (!location) break;
+          target = new URL(location, target);
+          if (target.protocol !== "https:" || !isPublicWebHost(target.hostname)) return fail(400, "The website redirected to a blocked address.");
+        }
+        if (!response || !response.ok) return fail(response ? response.status : 502, "Could not open that website.");
+        const type = response.headers.get("Content-Type") || "";
+        if (!/(text\/html|text\/plain)/i.test(type)) return fail(415, "That URL did not return an HTML or text page.");
+        const source = await response.text();
+        if (source.length > 2_000_000) return fail(413, "That page is too large to inspect.");
+        const page = extractPageText(source, type);
+        return reply({ ok: true, url: target.toString(), title: page.title, content: page.content.slice(0, 24000) });
+      } catch (error) {
+        return fail(502, error.message || "Website inspection failed.");
+      }
+    }
+
     // Composio connector routes. The project API key never leaves this Worker.
     if (path.startsWith("/composio/")) {
       if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare > Worker > Settings > Variables and Secrets, then deploy.");
@@ -170,6 +204,29 @@ export default {
     });
   },
 };
+
+function isPublicWebHost(hostname) {
+  const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes(":")) return false;
+  if (!host.includes(".") || !/^[a-z0-9.-]+$/.test(host)) return false;
+  return true;
+}
+
+function extractPageText(source, contentType) {
+  if (/text\/plain/i.test(contentType)) return { title: "Text page", content: source.replace(/\s+/g, " ").trim() };
+  const title = (source.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [,""])[1]
+    .replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  const content = source
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(script|style|noscript|svg|canvas|iframe)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<(nav|footer)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|section|article|h[1-6]|li|br|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+  return { title: title || "Website", content };
+}
 
 /* ---------- request translation ---------- */
 
