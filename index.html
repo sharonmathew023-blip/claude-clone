@@ -731,9 +731,9 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <input type="text" id="workerUrlInput" value="https://openclaude-api.sharonmathew023.workers.dev/chat/completions" />
 </div>
 <div class="field-group">
-<label>Access token (optional)</label>
+<label>Access token (required)</label>
 <input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Only if your Worker has an ACCESS_TOKEN secret" />
-<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Locks your Worker so only people with the token can use your Gemini quota. Saved in this browser only. It is left out of exported files.</p>
+<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Required to use your private Worker. The token stays in this browser and is left out of exported files. Never share it.</p>
 </div>
 <div class="field-group">
 <label>Gemini model</label>
@@ -1110,6 +1110,30 @@ container.querySelectorAll('.msg-assistant pre').forEach(pre => {
 const scroll = document.getElementById('chatScroll');
 scroll.scrollTop = scroll.scrollHeight;
 }
+function extractArtifactFromReply(markdown) {
+  const blocks = [];
+  const fence = String.fromCharCode(96, 96, 96);
+  const pattern = new RegExp(fence + '([a-zA-Z0-9_-]*)[^\\n]*\\n([\\s\\S]*?)\\n' + fence, 'g');
+  let match;
+  while ((match = pattern.exec(String(markdown || '')))) blocks.push({ language: (match[1] || '').toLowerCase(), code: match[2].trim() });
+  const htmlBlock = blocks.find(block => /^(html?|xhtml)$/.test(block.language) || /<(?:!doctype\\s+html|html|head|body|main|section|div|button|canvas|svg)\\b/i.test(block.code));
+  if (!htmlBlock) return null;
+  let code = htmlBlock.code;
+  const css = blocks.filter(block => block.language === 'css').map(block => block.code).join('\\n\\n');
+  const js = blocks.filter(block => ['js', 'javascript'].includes(block.language)).map(block => block.code).join('\\n\\n');
+  if (!/<html[\\s>]/i.test(code)) code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
+  if (css && !/<style[\\s>]/i.test(code)) {
+    const style = '<style>\\n' + css + '\\n</style>';
+    code = /<\\/head>/i.test(code) ? code.replace(/<\\/head>/i, style + '</head>') : style + code;
+  }
+  if (js && !/<script[\\s>]/i.test(code)) {
+    const script = '<script>\\n' + js + '\\n</script>';
+    code = /<\\/body>/i.test(code) ? code.replace(/<\\/body>/i, script + '</body>') : code + script;
+  }
+  const titleMatch = code.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  return { title: titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() || 'Generated Artifact' : 'Generated Artifact', code };
+}
+
 function openArtifactPane() {
 const pane = document.getElementById('artifactPane');
 pane.classList.add('open');
@@ -1177,63 +1201,69 @@ if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Worker URL mus
 if (url.pathname === '/' || url.pathname === '') url.pathname = '/chat/completions';
 return url.toString();
 }
-async function readWorkerReply(response) {
-const body = await response.text();
-if (!response.ok) {
-let message = body || response.statusText || 'Unknown server error';
-try {
-const parsed = JSON.parse(body);
-message = parsed.error?.message || parsed.error || parsed.message || message;
-if (typeof message !== 'string') message = JSON.stringify(message);
-} catch (_) {}
-const failure = new Error(friendlyHttpMessage(response.status, message));
-failure.retryable = RETRYABLE_STATUS.has(response.status);
-failure.retryAfter = parseRetryAfter(response.headers.get('retry-after'));
-failure.modelGone = isModelProblem(response.status, message);
-throw failure;
+async function readWorkerReply(response, onChunk) {
+  if (!response.ok) {
+    const body = await response.text();
+    let message = body || response.statusText || 'Unknown server error';
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed.error?.message || parsed.error || parsed.message || message;
+      if (typeof message !== 'string') message = JSON.stringify(message);
+    } catch (_) {}
+    const failure = new Error(friendlyHttpMessage(response.status, message));
+    failure.retryable = RETRYABLE_STATUS.has(response.status);
+    failure.retryAfter = parseRetryAfter(response.headers.get('retry-after'));
+    failure.modelGone = isModelProblem(response.status, message);
+    throw failure;
+  }
+  if (!response.body || !response.body.getReader) {
+    const body = await response.text();
+    try {
+      const data = JSON.parse(body);
+      const content = data.choices?.[0]?.message?.content ?? data.response ?? data.content;
+      if (typeof content === 'string' && content.trim()) { if (onChunk) onChunk(content); return content; }
+    } catch (_) {}
+    throw new Error('This browser could not read the streamed response.');
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+  let sawDone = false;
+  function consume(line) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return;
+    const payload = trimmed.slice(5).trim();
+    if (!payload) return;
+    if (payload === '[DONE]') { sawDone = true; return; }
+    let event;
+    try { event = JSON.parse(payload); } catch (_) { return; }
+    if (event.error) throw streamError(event.error);
+    const piece = event.choices?.[0]?.delta?.content ?? event.choices?.[0]?.message?.content ?? event.choices?.[0]?.text ?? event.response ?? '';
+    if (typeof piece === 'string' && piece) {
+      full += piece;
+      if (onChunk) onChunk(full);
+    }
+  }
+  try {
+    while (!sawDone) {
+      const part = await reader.read();
+      if (part.done) break;
+      buffer += decoder.decode(part.value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) consume(line);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consume(buffer);
+  } catch (error) {
+    try { await reader.cancel(); } catch (_) {}
+    throw error;
+  }
+  if (!full.trim()) throw new Error('Worker replied, but its response stream contained no answer. Check the Worker /chat/completions route.');
+  return full;
 }
-if (!body.trim()) { const empty = new Error('The Worker returned an empty response.'); empty.retryable = true; throw empty; }
-// Support both standard JSON responses and Server-Sent Events (SSE).
-try {
-const data = JSON.parse(body);
-const content = data.choices?.[0]?.message?.content
-?? data.choices?.[0]?.text
-?? data.response
-?? data.content;
-if (typeof content === 'string' && content.trim()) return content;
-if (data.error) throw streamError(data.error);
-} catch (error) {
-if (error instanceof SyntaxError) {
-// Not JSON: try parsing it as an SSE stream below.
-} else {
-throw error;
-}
-}
-const chunks = [];
-for (const line of body.split(/\r?\n/)) {
-const trimmed = line.trim();
-if (!trimmed.startsWith('data:')) continue;
-const payload = trimmed.slice(5).trim();
-if (!payload || payload === '[DONE]') continue;
-try {
-const event = JSON.parse(payload);
-if (event.error) throw streamError(event.error);
-const piece = event.choices?.[0]?.delta?.content
-?? event.choices?.[0]?.message?.content
-?? event.choices?.[0]?.text
-?? event.response;
-if (typeof piece === 'string') chunks.push(piece);
-} catch (error) {
-if (error instanceof SyntaxError) continue;
-throw error;
-}
-}
-const result = chunks.join('');
-if (!result.trim()) {
-throw new Error('Worker replied, but its response format was not recognized. Check the Worker /chat/completions route.');
-}
-return result;
-}
+
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const NETWORK_RETRIES = 2;
 const MODEL_FALLBACKS = ['gemini-3.6-flash', 'gemini-flash-lite-latest'];
@@ -1322,7 +1352,7 @@ const headers = { 'Content-Type': 'application/json' };
 if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
 return headers;
 }
-async function requestOnce(url, payload, userSignal, timeoutMs = 60000) {
+async function requestOnce(url, payload, userSignal, onChunk, timeoutMs = 60000) {
 const controller = new AbortController();
 let timedOut = false;
 const onUser = () => controller.abort();
@@ -1335,7 +1365,7 @@ try {
 res = await fetch(url, { method: 'POST', headers: workerHeaders(), body: JSON.stringify(payload), signal: controller.signal });
 } catch (error) { throw describeFetchFailure(error, url, timedOut); }
 try {
-return await readWorkerReply(res); // the same timer and Stop button also cover reading the body
+return await readWorkerReply(res, onChunk); // stream chunks while the same timer and Stop button cover the body
 } catch (error) { throw describeFetchFailure(error, url, timedOut); }
 } finally {
 clearTimeout(timer);
@@ -1361,17 +1391,19 @@ const timer = setTimeout(done, ms);
 signal.addEventListener('abort', done, { once: true });
 });
 }
-async function requestWorkerReply(endpoint, messages, signal, onStatus) {
+async function requestWorkerReply(endpoint, messages, signal, onStatus, onChunk) {
 const models = modelChain();
 let lastError = null;
+let emittedAnyText = false;
+const emitChunk = text => { emittedAnyText = true; if (onChunk) onChunk(text); };
 for (let index = 0; index < models.length; index++) {
 const model = models[index];
 onStatus(index === 0 ? `Connecting to ${model}…` : `Switching to ${model}…`);
 for (let attempt = 0; ; attempt++) {
 try {
-return await requestOnce(endpoint, { model, stream: true, messages }, signal);
+return await requestOnce(endpoint, { model, stream: true, messages }, signal, emitChunk);
 } catch (error) {
-if (error.stopped) throw error;
+if (error.stopped || emittedAnyText) throw error;
 lastError = error;
 // A dropped connection is usually a phone/network blip, not the Worker's fault:
 // resend the same request before telling the user anything.
@@ -1430,6 +1462,8 @@ const model = document.getElementById('modelSelect').value;
 const statusEl = document.getElementById('engineStatus');
 let replyText = '';
 let generatedArtifact = false;
+let streamingAssistant = null;
+let artifactOpened = false;
 let stopped = false;
 let isError = false;
 activeRequest = new AbortController();
@@ -1463,7 +1497,29 @@ const textContent = m.content + (attachments.some(f => f.kind === 'text') ? '\n\
 const binaryParts = attachments.filter(f => f.kind === 'binary').map(f => ({ type: 'image_url', image_url: { url: f.dataUrl } }));
 return { role: m.role, content: binaryParts.length ? [{ type:'text', text:textContent }, ...binaryParts] : textContent };
 })
-], activeRequest.signal, text => { statusEl.textContent = text; });
+], activeRequest.signal, text => { statusEl.textContent = text; }, partial => {
+replyText = partial;
+if (!streamingAssistant) {
+  streamingAssistant = { role: 'assistant', content: partial, hasArtifact: false };
+  thread.messages.push(streamingAssistant);
+} else streamingAssistant.content = partial;
+const artifact = extractArtifactFromReply(partial);
+if (artifact) {
+  generatedArtifact = true;
+  streamingAssistant.hasArtifact = true;
+  state.activeArtifact = artifact;
+  if (!artifactOpened && state.activeThreadId === thread.id) {
+    openArtifactPane();
+    artifactOpened = true;
+  } else if (artifactOpened) {
+    document.getElementById('artifactTitle').textContent = artifact.title;
+    document.getElementById('artifactFrame').srcdoc = artifact.code;
+    document.getElementById('artifactCode').textContent = artifact.code;
+  }
+}
+saveState();
+if (state.activeThreadId === thread.id) renderChat();
+});
 } else {
 // Built-in offline sandbox: no network request is made.
 if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('calculator') || prompt.toLowerCase().includes('html')) {
@@ -1502,12 +1558,13 @@ saveState();
 renderChat();
 return;
 }
-thread.messages.push({
-role: 'assistant',
-content: replyText,
-hasArtifact: generatedArtifact,
-isError
-});
+if (streamingAssistant) {
+streamingAssistant.content = replyText;
+streamingAssistant.hasArtifact = generatedArtifact;
+streamingAssistant.isError = isError;
+} else {
+thread.messages.push({ role: 'assistant', content: replyText, hasArtifact: generatedArtifact, isError });
+}
 if (!statusEl.textContent.includes('failed')) statusEl.textContent = 'Engine: Ready';
 saveState();
 renderChat();
