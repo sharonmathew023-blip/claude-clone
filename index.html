@@ -499,6 +499,7 @@ transform: translateX(-100%);
 <textarea
 id="promptInput"
 class="composer-textarea"
+enterkeyhint="send"
 placeholder="Ask anything, write code, or generate an interactive HTML artifact..."
 ></textarea>
 <div class="composer-actions">
@@ -1020,8 +1021,25 @@ if (generatedArtifact) openArtifactPane();
 }
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
-document.getElementById('promptInput').addEventListener('keydown', e => {
-if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+function usesTouchKeyboard() {
+return Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+const promptEl = document.getElementById('promptInput');
+let lastEnterHadShift = false;
+promptEl.addEventListener('keydown', e => {
+if (e.key === 'Enter') lastEnterHadShift = e.shiftKey;
+if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); handleSend(); }
+});
+// Phone and tablet keyboards often send Enter as an IME key and only insert a
+// line break, so send on the break itself. A phone has no Shift key, so Enter
+// always sends there; long messages still wrap on their own.
+promptEl.addEventListener('beforeinput', e => {
+if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
+const shifted = lastEnterHadShift;
+lastEnterHadShift = false;
+if (shifted || !usesTouchKeyboard()) return;
+e.preventDefault();
+handleSend();
 });
 document.getElementById('themeToggleBtn').addEventListener('click', () => {
 state.theme = state.theme === 'dark' ? 'light' : 'dark';
