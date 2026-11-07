@@ -539,6 +539,11 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Locks your Worker so only people with the token can use your Gemini quota. Saved in this browser only. It is left out of exported files.</p>
 </div>
 <div class="field-group">
+<label>Gemini model</label>
+<input type="text" id="modelInput" value="gemini-3.5-flash" spellcheck="false" />
+<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">If this model is overloaded, the app automatically tries gemini-3.6-flash, then gemini-flash-lite-latest.</p>
+</div>
+<div class="field-group">
 <label>Project System Prompt</label>
 <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
 </div>
@@ -558,6 +563,7 @@ filter: 'all',
 search: '',
 workerUrl: 'https://openclaude-api.sharonmathew023.workers.dev/chat/completions',
 accessToken: '',
+model: 'gemini-3.5-flash',
 systemPrompt: 'You are OpenClaude, a helpful, concise, open-source AI assistant.',
 activeArtifact: {
 title: 'Interactive Pomodoro Timer',
@@ -754,6 +760,7 @@ if (typeof message !== 'string') message = JSON.stringify(message);
 const failure = new Error(friendlyHttpMessage(response.status, message));
 failure.retryable = RETRYABLE_STATUS.has(response.status);
 failure.retryAfter = parseRetryAfter(response.headers.get('retry-after'));
+failure.modelGone = isModelProblem(response.status, message);
 throw failure;
 }
 if (!body.trim()) { const empty = new Error('The Worker returned an empty response.'); empty.retryable = true; throw empty; }
@@ -799,7 +806,7 @@ throw new Error('Worker replied, but its response format was not recognized. Che
 return result;
 }
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
-const MAX_ATTEMPTS = 4;
+const MODEL_FALLBACKS = ['gemini-3.6-flash', 'gemini-flash-lite-latest'];
 let activeRequest = null;
 function parseRetryAfter(value) {
 if (!value) return null;
@@ -830,6 +837,7 @@ const message = typeof e === 'string' ? e : (e.message || JSON.stringify(e));
 const code = Number(e && e.code) || 0;
 const err = new Error(code ? friendlyHttpMessage(code, message) : message);
 err.retryable = RETRYABLE_STATUS.has(code);
+err.modelGone = isModelProblem(code, message);
 return err;
 }
 function describeFetchFailure(error, url, timedOut) {
@@ -844,18 +852,6 @@ try { origin = new URL(url).origin; } catch (_) {}
 return new Error(`Could not reach ${origin || 'the server'}. Open that address in a new browser tab. If it does not load, fix the Worker URL in Settings or try another network (turn off VPNs and ad blockers). If it loads, the Worker may be blocking this site (CORS).`);
 }
 return error;
-}
-function sleepWithCountdown(ms, signal, onTick) {
-return new Promise((resolve, reject) => {
-const end = Date.now() + ms;
-const timer = setInterval(() => {
-if (signal.aborted) return halt();
-const left = end - Date.now();
-if (left <= 0) { clearInterval(timer); resolve(); } else onTick(Math.ceil(left / 1000));
-}, 250);
-function halt() { clearInterval(timer); const e = new Error('Stopped.'); e.stopped = true; reject(e); }
-if (signal.aborted) halt(); else onTick(Math.ceil(ms / 1000));
-});
 }
 function workerHeaders() {
 const headers = { 'Content-Type': 'application/json' };
@@ -882,23 +878,37 @@ clearTimeout(timer);
 userSignal.removeEventListener('abort', onUser);
 }
 }
-async function requestWorkerReply(endpoint, payload, signal, onStatus) {
-let timeouts = 0;
-for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-onStatus(attempt === 1 ? 'Connecting to Cloudflare Worker…' : `Trying again (attempt ${attempt} of ${MAX_ATTEMPTS})…`);
+// The model chosen in Settings first, then the backups, so one saturated model cannot
+// take the whole app down. Google's 503 "high demand" error clears on another model.
+function modelChain() {
+const primary = (state.model || '').trim() || 'gemini-3.5-flash';
+return [primary, ...MODEL_FALLBACKS.filter(model => model !== primary)];
+}
+// A retired or misspelled model is worth replacing; a bad token or URL is not.
+function isModelProblem(status, message) {
+if (status === 404) return true;
+return status === 400 && /model/i.test(String(message || ''));
+}
+async function requestWorkerReply(endpoint, messages, signal, onStatus) {
+const models = modelChain();
+let lastError = null;
+for (let index = 0; index < models.length; index++) {
+const model = models[index];
+onStatus(index === 0 ? `Connecting to ${model}…` : `Switching to ${model}…`);
 try {
-return await requestOnce(endpoint, payload, signal);
+return await requestOnce(endpoint, { model, stream: true, messages }, signal);
 } catch (error) {
 if (error.stopped) throw error;
-if (error.timeout) timeouts++;
-if (!error.retryable || attempt === MAX_ATTEMPTS || timeouts > 1) {
-if (attempt > 1) error.message += ` (Tried ${attempt} times.)`;
-throw error;
-}
-const waitMs = error.retryAfter != null ? Math.min(error.retryAfter * 1000, 30000) : Math.min(1000 * 2 ** (attempt - 1), 8000) * (0.75 + Math.random() * 0.5);
-await sleepWithCountdown(waitMs, signal, secs => onStatus(`Gemini is busy. Retrying in ${secs}s… (attempt ${attempt + 1} of ${MAX_ATTEMPTS})`));
+lastError = error;
+// Not something another model can fix: report it straight away.
+if (!error.retryable && !error.modelGone) throw error;
+if (index === models.length - 1) break;
 }
 }
+if (lastError && (lastError.retryable || lastError.modelGone)) {
+lastError.message = `Google's Gemini service is not answering right now (tried ${models.join(', ')}). Last error: ${lastError.message}`;
+}
+throw lastError;
 }
 async function handleSend(event) {
 const input = document.getElementById('promptInput');
@@ -932,14 +942,10 @@ try {
 if (model === 'cloudflare-worker') {
 const endpoint = normalizeWorkerUrl(state.workerUrl);
 statusEl.textContent = 'Connecting to Cloudflare Worker…';
-replyText = await requestWorkerReply(endpoint, {
-model: 'gemini-3.8-flash',
-stream: true,
-messages: [
+replyText = await requestWorkerReply(endpoint, [
 { role: 'system', content: state.systemPrompt },
 ...thread.messages.filter(m => !m.isError).map(m => ({ role: m.role, content: m.content }))
-]
-}, activeRequest.signal, text => { statusEl.textContent = text; });
+], activeRequest.signal, text => { statusEl.textContent = text; });
 } else {
 // Built-in offline sandbox: no network request is made.
 if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('calculator') || prompt.toLowerCase().includes('html')) {
@@ -1038,6 +1044,7 @@ document.getElementById('tabPreviewBtn').classList.remove('active');
 });
 document.getElementById('openSettingsBtn').addEventListener('click', () => {
 document.getElementById('workerUrlInput').value = state.workerUrl;
+document.getElementById('modelInput').value = state.model || 'gemini-3.5-flash';
 document.getElementById('sysPromptInput').value = state.systemPrompt;
 document.getElementById('accessTokenInput').value = state.accessToken || '';
 document.getElementById('settingsModal').classList.add('open');
@@ -1054,6 +1061,7 @@ document.getElementById('artifactPane').classList.remove('open');
 });
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
 state.workerUrl = document.getElementById('workerUrlInput').value.trim();
+state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
 state.systemPrompt = document.getElementById('sysPromptInput').value.trim();
 state.accessToken = document.getElementById('accessTokenInput').value.trim();
 document.getElementById('providerBadge').textContent = 'Worker';
