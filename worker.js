@@ -41,7 +41,7 @@ export default {
     }
 
     if (!authorized(request, env)) {
-      return fail(401, "Missing or wrong access token. Put it in the API key field in Settings.");
+      return fail(401, "Missing or wrong access token. Put it in Settings > Access token.");
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {

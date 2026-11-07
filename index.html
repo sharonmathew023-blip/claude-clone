@@ -534,6 +534,11 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <input type="text" id="workerUrlInput" value="https://openclaude-api.sharonmathew023.workers.dev/chat/completions" />
 </div>
 <div class="field-group">
+<label>Access token (optional)</label>
+<input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Only if your Worker has an ACCESS_TOKEN secret" />
+<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Locks your Worker so only people with the token can use your Gemini quota. Saved in this browser only. It is left out of exported files.</p>
+</div>
+<div class="field-group">
 <label>Project System Prompt</label>
 <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
 </div>
@@ -552,6 +557,7 @@ activeThreadId: 'thread-1',
 filter: 'all',
 search: '',
 workerUrl: 'https://openclaude-api.sharonmathew023.workers.dev/chat/completions',
+accessToken: '',
 systemPrompt: 'You are OpenClaude, a helpful, concise, open-source AI assistant.',
 activeArtifact: {
 title: 'Interactive Pomodoro Timer',
@@ -807,7 +813,8 @@ const d = detail ? ` Details: ${String(detail).slice(0, 300)}` : '';
 if (status === 400 && /api key/i.test(detail || '')) return 'Gemini rejected the API key. Check the GEMINI_API_KEY secret on your Worker.';
 switch (status) {
 case 400: return `The request was rejected (400).${d}`;
-case 401: case 403: return `The Worker or Gemini refused access (${status}). Check the Worker secrets and any access token.${d}`;
+case 401: return state.accessToken ? 'The Worker rejected your access token (401). Check it in Settings against the ACCESS_TOKEN secret in Cloudflare.' : 'This Worker needs an access token (401). Paste it in Settings > Access token.';
+case 403: return `Access was refused (403). Check the Worker secrets and allowed sites.${d}`;
 case 404: return `Model or route not found (404). Check the Worker URL and the model name.${d}`;
 case 413: return 'This conversation is too long for one request. Start a new chat.';
 case 422: return detail || 'Gemini could not answer this. Try rephrasing your message.';
@@ -850,6 +857,11 @@ function halt() { clearInterval(timer); const e = new Error('Stopped.'); e.stopp
 if (signal.aborted) halt(); else onTick(Math.ceil(ms / 1000));
 });
 }
+function workerHeaders() {
+const headers = { 'Content-Type': 'application/json' };
+if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
+return headers;
+}
 async function requestOnce(url, payload, userSignal, timeoutMs = 60000) {
 const controller = new AbortController();
 let timedOut = false;
@@ -860,7 +872,7 @@ const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout
 try {
 let res;
 try {
-res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
+res = await fetch(url, { method: 'POST', headers: workerHeaders(), body: JSON.stringify(payload), signal: controller.signal });
 } catch (error) { throw describeFetchFailure(error, url, timedOut); }
 try {
 return await readWorkerReply(res); // the same timer and Stop button also cover reading the body
@@ -1027,6 +1039,7 @@ document.getElementById('tabPreviewBtn').classList.remove('active');
 document.getElementById('openSettingsBtn').addEventListener('click', () => {
 document.getElementById('workerUrlInput').value = state.workerUrl;
 document.getElementById('sysPromptInput').value = state.systemPrompt;
+document.getElementById('accessTokenInput').value = state.accessToken || '';
 document.getElementById('settingsModal').classList.add('open');
 });
 document.getElementById('settingsModal').addEventListener('click', e => {
@@ -1042,12 +1055,13 @@ document.getElementById('artifactPane').classList.remove('open');
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
 state.workerUrl = document.getElementById('workerUrlInput').value.trim();
 state.systemPrompt = document.getElementById('sysPromptInput').value.trim();
+state.accessToken = document.getElementById('accessTokenInput').value.trim();
 document.getElementById('providerBadge').textContent = 'Worker';
 saveState();
 document.getElementById('settingsModal').classList.remove('open');
 });
 document.getElementById('exportDataBtn').addEventListener('click', () => {
-const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+const blob = new Blob([JSON.stringify({ ...state, accessToken: undefined }, null, 2)], { type: 'application/json' });
 const a = document.createElement('a');
 a.href = URL.createObjectURL(blob);
 a.download = 'openclaude-backup.json';
