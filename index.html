@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#141413">
+  <title>OpenClaude · Local AI Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="mobile-scrim" id="mobileScrim"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <a class="brand" href="#" aria-label="OpenClaude home"><span class="brand-mark">✳</span><span>OpenClaude</span><small>LOCAL</small></a>
+      <button class="icon-btn mobile-only" id="closeSidebar" aria-label="Close menu">×</button>
+    </div>
+    <button class="new-chat" id="newChat"><span>＋</span> New conversation <kbd>⌘ K</kbd></button>
+    <div class="side-label-row"><span>YOUR WORKSPACE</span><button class="text-btn" id="clearSearch">Clear</button></div>
+    <label class="search-wrap"><span>⌕</span><input id="searchInput" type="search" placeholder="Search conversations"></label>
+    <div class="thread-list" id="threadList" aria-label="Conversations"></div>
+    <div class="sidebar-bottom">
+      <div class="engine-card">
+        <div class="engine-icon">◉</div>
+        <div class="engine-copy"><strong id="engineName">Demo mode</strong><span id="engineSub">No model connected</span></div>
+        <span class="status-dot" id="engineDot"></span>
+      </div>
+      <button class="side-action" id="settingsOpen"><span>⚙</span> Settings <span class="side-shortcut">Configure</span></button>
+      <button class="side-action" id="themeToggle"><span>◐</span> Appearance <span class="side-shortcut" id="themeName">Dark</span></button>
+      <div class="privacy-note">Your chats stay in this browser.<br>Connect your own model to chat.</div>
+    </div>
+  </aside>
+
+  <main class="main-view">
+    <header class="topbar">
+      <div class="top-left">
+        <button class="icon-btn" id="openSidebar" aria-label="Open menu">☰</button>
+        <div class="mobile-brand">OpenClaude <span>LOCAL</span></div>
+        <div class="workspace-label">Workspace <span> / </span> <b id="activeTitle">New conversation</b></div>
+      </div>
+      <div class="top-right">
+        <span class="connection-label"><i id="connectionDot"></i><span id="connectionText">Demo mode</span></span>
+        <button class="model-chip" id="modelChip">Choose model <span>⌄</span></button>
+      </div>
+    </header>
+
+    <section class="chat-scroll" id="chatScroll">
+      <div class="chat-container" id="chatContainer"></div>
+    </section>
+
+    <footer class="composer-area">
+      <div class="composer" id="composer">
+        <textarea id="promptInput" rows="1" placeholder="Message OpenClaude..." aria-label="Message"></textarea>
+        <div class="composer-bottom">
+          <div class="composer-tools">
+            <button class="tool-btn" id="attachHint" title="Attach files (coming later)" disabled>＋ <span>Attach</span></button>
+            <span class="composer-hint">AI can make mistakes. Check important details.</span>
+          </div>
+          <div class="composer-right"><span id="typingStatus"></span><button class="send-btn" id="sendBtn" aria-label="Send message">↑</button></div>
+        </div>
+      </div>
+      <div class="composer-foot">Open-source interface · Bring your own local model</div>
+    </footer>
+  </main>
+
+  <aside class="artifact-pane" id="artifactPane">
+    <header class="artifact-head">
+      <div><span class="eyebrow">WORKSPACE</span><strong id="artifactTitle">Artifact preview</strong></div>
+      <div class="artifact-head-actions">
+        <button class="tab-btn active" id="previewTab">Preview</button>
+        <button class="tab-btn" id="codeTab">Code</button>
+        <button class="icon-btn" id="closeArtifact" aria-label="Close artifact">×</button>
+      </div>
+    </header>
+    <div class="artifact-content">
+      <iframe id="artifactFrame" title="Artifact preview" sandbox="allow-scripts"></iframe>
+      <pre id="artifactCode" class="artifact-code"></pre>
+    </div>
+    <div class="artifact-foot"><span>Sandboxed preview</span><button class="text-btn" id="downloadArtifact">Download HTML</button></div>
+  </aside>
+</div>
+
+<div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <section class="settings-modal">
+    <header class="modal-head"><div><span class="eyebrow">PREFERENCES</span><h2 id="settingsTitle">Settings</h2></div><button class="icon-btn" id="settingsClose" aria-label="Close settings">×</button></header>
+    <div class="settings-body">
+      <div class="settings-section">
+        <h3>AI provider</h3>
+        <p>Connect a local Ollama server or an OpenAI-compatible API. This app does not provide model hosting.</p>
+        <label class="field-label">Provider</label>
+        <select id="providerSelect"><option value="ollama">Ollama (local)</option><option value="openai">OpenAI-compatible API</option><option value="demo">Demo mode (no AI)</option></select>
+        <label class="field-label">Base URL</label>
+        <input id="baseUrl" type="url" spellcheck="false" placeholder="http://localhost:11434">
+        <div class="field-help" id="urlHelp">Ollama API base URL. Usually http://localhost:11434</div>
+        <label class="field-label">Model name</label>
+        <input id="modelName" type="text" spellcheck="false" placeholder="llama3.2">
+        <label class="field-label">API key <span class="optional">optional</span></label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="Only used for this browser session">
+        <div class="field-help">The API key is kept in memory only and is not saved to chat history or local storage.</div>
+        <div class="settings-actions"><button class="secondary-btn" id="testConnection">Test connection</button><span id="testResult" role="status"></span></div>
+      </div>
+      <div class="settings-section">
+        <h3>Assistant instructions</h3>
+        <label class="field-label">System prompt</label>
+        <textarea id="systemPrompt" rows="4">You are a helpful, clear, and thoughtful AI assistant. Be honest about uncertainty and explain technical topics simply.</textarea>
+      </div>
+      <div class="settings-section">
+        <h3>Your data</h3>
+        <p>Conversations and preferences are stored in this browser using localStorage. Clearing browser data removes them.</p>
+        <div class="data-actions"><button class="secondary-btn" id="exportData">Export conversations</button><button class="secondary-btn danger-btn" id="clearAll">Delete all conversations</button></div>
+      </div>
+    </div>
+    <footer class="modal-foot"><span id="saveNotice">Changes apply to new messages.</span><button class="primary-btn" id="saveSettings">Save settings</button></footer>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
