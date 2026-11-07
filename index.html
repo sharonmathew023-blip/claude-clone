@@ -551,7 +551,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 .mobile-menu-btn,.mobile-history-btn{width:40px;height:40px;min-width:40px;min-height:40px;border:0;border-radius:50%;background:#242424;color:#fff}
 .mobile-menu-btn svg,.mobile-history-btn svg,.get-plus-btn svg,.mobile-mic-btn svg,.voice-mode-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .get-plus-btn{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;background:#202735;color:#c5d8ff;font:600 14px var(--font-sans)}.get-plus-btn svg{width:18px;height:18px;color:#78aaff;fill:currentColor;stroke:none}
-.mobile-nav-left{display:flex}.mobile-nav-right{display:flex}.mobile-mic-btn,.voice-mode-btn{display:none}
+.mobile-nav-left{display:flex}.mobile-nav-right{display:flex}.mobile-mic-btn{display:none}.voice-mode-btn{display:none}
 .home-indicator{display:none}
 @media(max-width:860px){
  html,body,.app-shell,.main-view{background:#000!important;color:#f5f5f5;height:100dvh;min-height:100dvh}
@@ -570,7 +570,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
  .attachment-preview{position:absolute;bottom:62px;left:16px;right:16px;margin:0}
  .composer-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}
  .composer-status,.send-btn{display:none!important}
- .mobile-mic-btn{display:inline-flex;width:36px;height:38px;min-width:36px;min-height:38px;border:0;border-radius:50%;background:transparent;color:#fff}
+ .mobile-mic-btn{display:none!important}
  .voice-mode-btn{display:inline-flex;width:42px;height:42px;min-width:42px;min-height:42px;align-items:center;justify-content:center;border:0;border-radius:50%;background:#f06435;color:#fff}
  .voice-mode-btn svg{width:21px;height:21px;stroke-width:2.1}
  .home-indicator{display:none!important}
@@ -700,9 +700,8 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <div id="attachmentPreview" class="attachment-preview"></div>
 <div class="composer-actions">
 <span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
-<button class="icon-btn mobile-mic-btn" id="mobileMicBtn" type="button" title="Dictate message" aria-label="Dictate message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8"/></svg></button>
 <button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message">↑</button>
-<button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice input" aria-label="Start voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
+<button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
 </div>
 </div>
 <div class="home-indicator" aria-hidden="true"></div>
@@ -1617,6 +1616,7 @@ const savedPrompt = prompt || 'Please review the attached file(s).';
 thread.messages.push({ role: 'user', content: savedPrompt, attachments: attachmentNames });
 input.value = '';
 selectedAttachments = [];
+updateComposerAction();
 renderAttachmentPreview();
 renderSidebar();
 renderChat();
@@ -1631,6 +1631,7 @@ let artifactPreviewTimer = null;
 let stopped = false;
 let isError = false;
 activeRequest = new AbortController();
+updateComposerAction();
 sendBtn.textContent = '■'; sendBtn.title = 'Stop generation'; sendBtn.setAttribute('aria-label','Stop generation');
 statusEl.textContent = `Connecting to ${model}…`;
 try {
@@ -1720,6 +1721,7 @@ statusEl.textContent = 'Engine: Connection failed';
 } finally {
 clearTimeout(artifactPreviewTimer);
 activeRequest = null;
+updateComposerAction();
 sendBtn.disabled = false;
 sendBtn.textContent = '↑'; sendBtn.title = 'Send message'; sendBtn.setAttribute('aria-label','Send message');
 }
@@ -1776,8 +1778,31 @@ function startMobileDictation(sendAfter = false) {
   recognition.onend = () => { if (sendAfter && input.value.trim()) handleSend(); };
   recognition.start();
 }
-document.getElementById('mobileMicBtn').addEventListener('click', () => startMobileDictation(false));
-document.getElementById('voiceModeBtn').addEventListener('click', () => startMobileDictation(true));
+function updateComposerAction() {
+  const button = document.getElementById('voiceModeBtn');
+  const input = document.getElementById('promptInput');
+  if (!button || !input) return;
+  const hasContent = Boolean(input.value.trim() || selectedAttachments.length);
+  if (activeRequest) {
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
+    button.title = 'Stop generation';
+    button.setAttribute('aria-label', 'Stop generation');
+  } else if (hasContent) {
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7 7 7 7-7"/></svg>';
+    button.title = 'Send message';
+    button.setAttribute('aria-label', 'Send message');
+  } else {
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg>';
+    button.title = 'Start voice assistant';
+    button.setAttribute('aria-label', 'Start voice assistant');
+  }
+}
+document.getElementById('voiceModeBtn').addEventListener('click', () => {
+  if (activeRequest) { activeRequest.abort(); return; }
+  if (document.getElementById('promptInput').value.trim() || selectedAttachments.length) handleSend();
+  else startMobileDictation(true);
+});
+document.getElementById('promptInput').addEventListener('input', updateComposerAction);
 
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
@@ -1897,7 +1922,7 @@ for (const file of files) {
   selectedAttachments.push({name:file.name,kind:'binary',dataUrl,mimeType:resolvedMime || mimeByExt[ext],size:file.size});
  } else { alert('Unsupported file type: ' + file.name); }
 }
-renderAttachmentPreview();event.target.value='';
+renderAttachmentPreview();updateComposerAction();event.target.value='';
 });
 document.getElementById('uploadSkillBtn').addEventListener('click',()=>document.getElementById('skillFileInput').click());
 document.getElementById('skillFileInput').addEventListener('change',async event=>{
