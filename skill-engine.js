@@ -673,7 +673,7 @@
     var summary = { added: 0, paused: 0, duplicates: 0, rejected: [], failed: 0, oversized: 0 };
     for (var i = 0; i < list.length && i < 20; i++) {
       var file = list[i];
-      if (!/\.(md|txt|markdown)$/i.test(file.name)) {
+      if (!/\.(md|txt)$/i.test(file.name)) {
         summary.failed++;
         continue;
       }
@@ -738,10 +738,15 @@
       if (!entry) return;
       var text = typeof entry === "string" ? entry : entry.content || entry.text || "";
       if (!text) return;
+      var fileName = typeof entry === "string" ? "community-skill.md" : String(entry.fileName || entry.name || "community-skill.md");
+      if (!/\.(md|txt)$/i.test(fileName)) {
+        summary.rejected.push(fileName + ": only .md and .txt skill files are supported");
+        return;
+      }
       var parsed;
       try {
         parsed = Rules.parseSkill(text, {
-          fileName: entry.fileName || entry.name || "community-skill.md",
+          fileName: fileName,
           trust: "community"
         });
       } catch (error) { return; }

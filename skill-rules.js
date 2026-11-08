@@ -62,7 +62,7 @@
   function normalizeCommand(name) {
     return String(name == null ? "" : name)
       .replace(/^.*[\\/]/, "")
-      .replace(/\.(md|txt|markdown)$/i, "")
+      .replace(/\.(md|txt)$/i, "")
       .toLowerCase()
       .replace(/[^a-z0-9_-]+/g, "-")
       .replace(/^-+|-+$/g, "")
@@ -349,7 +349,7 @@
     var meta = {};
     var body = stripFrontMatter(text, meta);
     var fileName = String(options.fileName || options.source || "");
-    var baseName = fileName.replace(/^.*[\\/]/, "").replace(/\.(md|txt|markdown)$/i, "");
+    var baseName = fileName.replace(/^.*[\\/]/, "").replace(/\.(md|txt)$/i, "");
     var heading = (body.match(/^#\s+(.+)$/m) || [])[1] || "";
     var name = clean(meta.name || heading || baseName || "Untitled skill", 80);
     var command = normalizeCommand(options.command || meta.command || name || baseName);
@@ -379,6 +379,15 @@
     var scan = scanSkill(content);
     var findings = scan.findings.slice();
     var verdict = scan.verdict;
+    if (fileName && !/\.(md|txt)$/i.test(fileName)) {
+      findings.push({
+        code: "unsupported-file-type",
+        severity: "block",
+        message: "Only .md and .txt skill files are supported.",
+        line: null
+      });
+      verdict = "blocked";
+    }
 
     if (!content) {
       findings.push({
