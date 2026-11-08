@@ -1240,7 +1240,7 @@ threadWriteQueue = threadWriteQueue.then(() => writeThreadSnapshot(threadDatabas
 .catch(error => {
 console.warn('OpenClaude IndexedDB save failed; returning to browser storage:', error);
 threadStorageReady = false;
-try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (fallbackError) {
+try { const fallbackSafe = { ...state }; delete fallbackSafe.accessToken; localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackSafe)); } catch (fallbackError) {
 console.warn('OpenClaude browser storage fallback also failed:', fallbackError);
 }
 });
