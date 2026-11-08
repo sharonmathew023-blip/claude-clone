@@ -33,9 +33,9 @@ assert.doesNotMatch(frontend, /localStorage\.setItem\(STORAGE_KEY,\s*JSON\.strin
 // Worker secrets remain environment bindings; privileged routes use verified Google identity.
 assert.match(worker, /env\.GEMINI_API_KEY/);
 assert.match(worker, /env\.COMPOSIO_API_KEY/);
-assert.match(worker, /https:\\/\\/connect\\.composio\\.dev\\/mcp/, "Composio uses the consumer MCP endpoint");
+assert.match(worker, /https:\/\/connect\.composio\.dev\/mcp/, "Composio uses the consumer MCP endpoint");
 assert.match(worker, /"x-consumer-api-key": apiKey/, "consumer keys use the consumer authentication header");
-assert.doesNotMatch(worker, /backend\\.composio\\.dev\\/api\\/v3\\.1|["']x-api-key["']/, "consumer keys are never sent to the Platform REST API");
+assert.doesNotMatch(worker, /backend\.composio\.dev\/api\/v3\.1|["']x-api-key["']/, "consumer keys are never sent to the Platform REST API");
 assert.match(worker, /COMPOSIO_MANAGE_CONNECTIONS/, "consumer MCP manages app connections");
 assert.match(worker, /readOnlyPattern/, "connected-app execution remains read-only");
 assert.doesNotMatch(worker, /env\.ACCESS_TOKEN|X-ULTRON-Admin-Token/);
