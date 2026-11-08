@@ -1,5 +1,65 @@
 /* ULTRON Skill Engine 2.0 — composer chips and skills panel. */
 
+/* Slash palette shared by built-in commands and skills. */
+.slash-command-menu {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% + 10px);
+  z-index: 80;
+  max-height: min(52vh, 430px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 7px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .28);
+  text-align: left;
+}
+.slash-command-menu[hidden] { display: none !important; }
+.slash-command-heading {
+  padding: 7px 9px 5px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.slash-command-item {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font: 400 .82rem/1.35 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.slash-command-item.active,
+.slash-command-item:hover { background: var(--bg-elevated); }
+.slash-command-name {
+  flex: 0 0 auto;
+  min-width: 112px;
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  color: var(--accent-terracotta);
+  overflow-wrap: anywhere;
+}
+.slash-command-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: .76rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .skill-strip {
   display: flex;
   align-items: center;
@@ -253,6 +313,9 @@
 }
 
 @media (max-width: 860px) {
+  .slash-command-menu { left: 0; right: 0; max-height: 48vh; }
+  .slash-command-item { flex-direction: column; gap: 2px; }
+  .slash-command-name { min-width: 0; }
   .skill-engine-stats { text-align: left; }
   .skill-strip { width: 100%; padding: 0; margin-bottom: 6px; }
   .skill-chip { font-size: 0.68rem; padding: 3px 8px; }
