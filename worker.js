@@ -84,72 +84,42 @@ export default {
       }
     }
 
-    // Composio connector routes. The project API key never leaves this Worker.
+    // Composio Connect consumer MCP. The ck_* key stays server-side and is
+    // sent only to connect.composio.dev using x-consumer-api-key.
     if (path.startsWith("/composio/")) {
       const auth = await authenticateGoogleRequest(request, env);
       if (!auth.identity) return fail(auth.status, auth.message);
       if (!isUltronOwner(auth.identity, env)) return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Connected apps are restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
-      if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare Worker Settings and deploy.");
-      const api = "https://backend.composio.dev/api/v3.1";
-      const callComposio = async (endpoint, options = {}) => {
-        const res = await fetch(api + endpoint, {
-          ...options,
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": env.COMPOSIO_API_KEY,
-            ...(options.headers || {}),
-          },
-        });
-        const body = await res.text();
-        let data = {};
-        try { data = body ? JSON.parse(body) : {}; } catch { data = { message: body.slice(0, 300) }; }
-        if (!res.ok) {
-          const detail = data.message
-            || (typeof data.error === "string" ? data.error : data.error ? JSON.stringify(data.error) : "")
-            || data.detail
-            || data.errors && JSON.stringify(data.errors)
-            || body.slice(0, 500)
-            || `Composio returned HTTP ${res.status}.`;
-          throw new Error(`Composio HTTP ${res.status}: ${detail}`);
-        }
-        return data;
-      };
+      if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add your Composio Consumer API key in Cloudflare and deploy.");
 
       try {
+        const mcp = await createComposioMcpClient(env.COMPOSIO_API_KEY);
         if (request.method === "POST" && path === "/composio/session") {
-          const created = await callComposio("/tool_router/session", {
-            method: "POST",
-            body: JSON.stringify({
-              user_id: "openclaude-primary-user",
-              toolkits: { enabled: ["github"] },
-              manage_connections: { enabled: true, enable_connection_removal: true },
-            }),
-          });
-          return reply({ ok: true, sessionId: created.session_id, toolkits: created.tool_router_tools || [] });
+          const tools = await mcp.listTools();
+          const required = ["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_MANAGE_CONNECTIONS"];
+          const missing = required.filter(name => !tools.some(tool => tool.name === name));
+          if (missing.length) throw new Error("Composio MCP did not expose required tools: " + missing.join(", "));
+          return reply({ ok: true, sessionId: "consumer-mcp", toolkits: tools.map(tool => tool.name) });
         }
 
         if (request.method === "POST" && path === "/composio/connect") {
           const input = await request.json().catch(() => ({}));
-          const sessionId = String(input.sessionId || "");
           const toolkit = String(input.toolkit || "github").toLowerCase();
-          if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) return fail(400, "A valid Composio session is required.");
-          if (toolkit !== "github") return fail(400, "This first connector build currently supports GitHub only.");
-          const linked = await callComposio(`/tool_router/session/${encodeURIComponent(sessionId)}/link`, {
-            method: "POST",
-            body: JSON.stringify({ toolkit, callback_url: "https://sharonmathew023-blip.github.io/ultron/" }),
-          });
-          return reply({ ok: true, redirectUrl: linked.redirect_url, connectedAccountId: linked.connected_account_id });
+          if (toolkit !== "github") return fail(400, "This connector setup currently supports GitHub only.");
+          const connected = await mcp.callTool("COMPOSIO_MANAGE_CONNECTIONS", { toolkits: [toolkit], reinitiate_all: false });
+          const redirectUrl = findComposioField(connected, ["redirect_url", "redirectUrl"]);
+          return reply({ ok: true, redirectUrl: typeof redirectUrl === "string" ? redirectUrl : null, data: connected });
         }
 
         if (request.method === "GET" && path === "/composio/status") {
-          const sessionId = String(url.searchParams.get("sessionId") || "");
-          if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) return fail(400, "A valid Composio session is required.");
-          const status = await callComposio(`/tool_router/session/${encodeURIComponent(sessionId)}/toolkits`);
+          const toolkit = String(url.searchParams.get("toolkit") || "github").toLowerCase();
+          if (toolkit !== "github") return fail(400, "This connector setup currently supports GitHub only.");
+          const status = await mcp.callTool("COMPOSIO_MANAGE_CONNECTIONS", { toolkits: [toolkit], reinitiate_all: false });
           return reply({ ok: true, data: status });
         }
         return fail(404, "Unknown Composio route.");
       } catch (error) {
-        return fail(502, error.message || "Composio request failed.");
+        return fail(502, error.message || "Composio MCP request failed.");
       }
     }
 
@@ -315,44 +285,130 @@ function guardSkillPrompt(messages, manifest) {
 }
 
 /* ---------- skill tool execution ---------- */
-async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
-  const sessionId = String(input.composioSessionId || "");
-  const hasSession = Boolean(sessionId);
-  if (hasSession && !/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid Composio session. Reconnect GitHub in Settings.");
-  if (hasSession && !env.COMPOSIO_API_KEY) throw new Error("Add a valid COMPOSIO_API_KEY in Cloudflare Worker secrets to enable connected apps.");
-  const apiBase = "https://backend.composio.dev/api/v3.1";
-  const composioCall = async (path, options = {}) => {
-    const response = await fetch(apiBase + path, { ...options, headers: { "Content-Type": "application/json", "x-api-key": env.COMPOSIO_API_KEY, ...(options.headers || {}) }, signal: AbortSignal.timeout(20000) });
+async function createComposioMcpClient(apiKey) {
+  const endpoint = "https://connect.composio.dev/mcp";
+  const state = { sessionId: "", requestId: 0 };
+  const send = async (method, params, notification = false) => {
+    const payload = { jsonrpc: "2.0", ...(notification ? {} : { id: ++state.requestId }), method, ...(params === undefined ? {} : { params }) };
+    const headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream",
+      "x-consumer-api-key": apiKey,
+      "MCP-Protocol-Version": "2025-03-26",
+      ...(state.sessionId ? { "MCP-Session-Id": state.sessionId } : {}),
+    };
+    const response = await fetch(endpoint, {
+      method: "POST", headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000),
+    });
+    const returnedSession = response.headers.get("MCP-Session-Id");
+    if (returnedSession) state.sessionId = returnedSession;
     const raw = await response.text();
-    let data = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 400) }; }
-    if (!response.ok) throw new Error(data.message || data.error?.message || data.detail || `Composio returned HTTP ${response.status}.`);
-    return data;
-  };
-  const available = [];
-  if (hasSession) {
-    let cursor = "";
-    for (let page = 0; page < 4; page++) {
-      const query = cursor ? `?limit=500&cursor=${encodeURIComponent(cursor)}` : "?limit=500";
-      const result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/tools${query}`);
-      available.push(...(Array.isArray(result.items) ? result.items : []));
-      cursor = result.next_cursor || "";
-      if (!cursor) break;
+    if (!response.ok) {
+      let detail = raw.slice(0, 500);
+      try { const parsed = JSON.parse(raw); detail = parsed.message || parsed.error?.message || detail; } catch {}
+      throw new Error("Composio MCP HTTP " + response.status + ": " + detail);
     }
+    if (notification || response.status === 202 || !raw.trim()) return {};
+    let message;
+    const contentType = response.headers.get("Content-Type") || "";
+    if (contentType.includes("text/event-stream")) {
+      const frames = [...raw.matchAll(/^data:\s*(.+)$/gm)].map(match => match[1].trim()).filter(Boolean);
+      for (let i = frames.length - 1; i >= 0; i--) {
+        try { message = JSON.parse(frames[i]); break; } catch {}
+      }
+    } else {
+      try { message = JSON.parse(raw); } catch { throw new Error("Composio MCP returned an unreadable response."); }
+    }
+    if (!message) throw new Error("Composio MCP returned no JSON-RPC response.");
+    if (message.error) throw new Error(message.error.message || "Composio MCP request failed.");
+    return message.result || {};
+  };
+
+  await send("initialize", {
+    protocolVersion: "2025-03-26",
+    capabilities: {},
+    clientInfo: { name: "ULTRON", version: "1.0.0" },
+  });
+  await send("notifications/initialized", undefined, true);
+  return {
+    request: send,
+    async listTools() {
+      const tools = [];
+      let cursor = "";
+      for (let page = 0; page < 8; page++) {
+        const result = await send("tools/list", cursor ? { cursor } : {});
+        tools.push(...(Array.isArray(result.tools) ? result.tools : []));
+        cursor = result.nextCursor || "";
+        if (!cursor) break;
+      }
+      return tools;
+    },
+    async callTool(name, args) {
+      const result = await send("tools/call", { name, arguments: args || {} });
+      if (result.isError) {
+        const detail = (result.content || []).map(item => item.text || "").join("\n");
+        throw new Error(detail || "Composio tool " + name + " failed.");
+      }
+      if (result.structuredContent && typeof result.structuredContent === "object") return result.structuredContent;
+      const text = (result.content || []).filter(item => item && item.type === "text").map(item => item.text || "").join("\n");
+      if (text) {
+        try { return JSON.parse(text); } catch { return { text }; }
+      }
+      return result;
+    },
+  };
+}
+
+function findComposioField(value, names, depth = 0) {
+  if (!value || typeof value !== "object" || depth > 8) return null;
+  for (const name of names) {
+    if (typeof value[name] === "string" && value[name]) return value[name];
   }
-  // Only GitHub read actions are exposed, and only when the active skills grant
-  // github.read. Writes stay disabled until an approval UI exists.
+  for (const child of Object.values(value)) {
+    const found = findComposioField(child, names, depth + 1);
+    if (found) return found;
+  }
+  if (typeof value.text === "string" && depth < 3) {
+    try { return findComposioField(JSON.parse(value.text), names, depth + 1); } catch {}
+  }
+  return null;
+}
+
+function composioMcpSchema(schema, depth = 0) {
+  if (!schema || typeof schema !== "object" || depth > 6) return { type: "STRING" };
+  const rawType = Array.isArray(schema.type) ? schema.type.find(type => type !== "null") : schema.type;
+  const type = String(rawType || (schema.properties ? "object" : "string")).toUpperCase();
+  const mapped = ["STRING", "NUMBER", "INTEGER", "BOOLEAN", "ARRAY", "OBJECT"].includes(type) ? type : "STRING";
+  const output = { type: mapped };
+  if (schema.description) output.description = String(schema.description).slice(0, 500);
+  if (Array.isArray(schema.enum)) output.enum = schema.enum;
+  if (mapped === "OBJECT") {
+    const properties = {};
+    for (const [key, value] of Object.entries(schema.properties || {})) properties[key] = composioMcpSchema(value, depth + 1);
+    output.properties = properties;
+    if (Array.isArray(schema.required) && schema.required.length) output.required = schema.required;
+  }
+  if (mapped === "ARRAY") output.items = composioMcpSchema(schema.items || { type: "string" }, depth + 1);
+  return output;
+}
+
+async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
+  if (!input.composioSessionId || !env.COMPOSIO_API_KEY) throw new Error("Connect GitHub in Settings and add the Composio Consumer API key as COMPOSIO_API_KEY in Cloudflare Worker secrets.");
   const allowedTools = skillAccess && skillAccess.present
     ? new Set(skillAccess.tools)
     : new Set(BASELINE_SKILL_TOOLS);
-  const readOnly = allowedTools.has("github.read") ? available.filter(tool => tool && tool.toolkit?.slug === "github" &&
-    /(?:^|_)(?:GET|LIST|SEARCH|FETCH|READ|FIND|VIEW|CHECK|LOOKUP|DOWNLOAD|DESCRIBE|INSPECT)(?:_|$)/i.test(tool.slug || "") && !tool.is_deprecated
-  ).slice(0, 80) : [];
-  const declarations = readOnly.map(tool => ({
-    name: tool.slug,
-    description: String(tool.description || tool.human_description || tool.name || tool.slug).slice(0, 900),
-    parameters: composioInputSchema(tool.input_parameters || {}),
-  }));
+  if (!allowedTools.has("github.read")) throw new Error("The active skills do not grant github.read.");
+
+  const mcp = await createComposioMcpClient(env.COMPOSIO_API_KEY);
+  const available = await mcp.listTools();
+  const safeMetaTools = new Set(["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL"]);
+  const declarations = available
+    .filter(tool => tool && safeMetaTools.has(tool.name))
+    .map(tool => ({
+      name: tool.name,
+      description: String(tool.description || tool.name).slice(0, 900),
+      parameters: composioMcpSchema(tool.inputSchema || { type: "object", properties: {} }),
+    }));
   if (allowedTools.has("web.read")) {
     declarations.push({
       name: "OPEN_PUBLIC_WEBPAGE",
@@ -360,16 +416,17 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
       parameters: { type: "OBJECT", properties: { url: { type: "STRING", description: "Public HTTPS URL" } }, required: ["url"] },
     });
   }
-  if (!declarations.length) {
-    throw new Error(hasSession
-      ? "The active skills do not permit any available tools."
-      : "No tools are available. Connect GitHub in Settings or grant a skill web.read.");
-  }
+  if (!declarations.length) throw new Error("Composio Connect did not expose its tool discovery actions.");
+
   const body = buildGeminiBody(input);
   if (!body.contents.length) throw new Error("No user or assistant messages were provided.");
+  const safetyNote = "Connected-app safety rules: use Composio only to discover and read GitHub repository information. Search only for GitHub read tools. Never execute writes, mutations, issue creation, commits, file updates, pull-request changes, or actions for any other app. COMPOSIO_MULTI_EXECUTE_TOOL is allowed only when every requested tool_slug is a GitHub read action (GET, LIST, SEARCH, FETCH, READ, FIND, VIEW, CHECK, LOOKUP, DOWNLOAD, DESCRIBE, or INSPECT).";
+  if (body.systemInstruction?.parts) body.systemInstruction.parts.push({ text: safetyNote });
+  else body.systemInstruction = { parts: [{ text: safetyNote }] };
   body.tools = [{ functionDeclarations: declarations }];
+
   const chain = buildModelChain(requestedModel, env);
-  let model = chain[0], finalText = "";
+  let model = chain[0], finalText = "", searchSessionId = "";
   for (let round = 0; round < 5; round++) {
     const generated = await callGeminiJson(chain, body, env.GEMINI_API_KEY);
     if (generated.error) throw new Error(generated.error.message);
@@ -381,16 +438,38 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
     body.contents.push(candidate.content);
     for (const part of calls) {
       const call = part.functionCall, name = String(call.name || "");
-      const args = call.args && typeof call.args === "object" ? call.args : {};
+      const args = call.args && typeof call.args === "object" ? { ...call.args } : {};
       let result;
       try {
         if (name === "OPEN_PUBLIC_WEBPAGE") {
           if (!allowedTools.has("web.read")) throw new Error("web.read is not granted to the active skills.");
           result = await readPublicPageForAgent(String(args.url || ""));
         } else {
-          if (!allowedTools.has("github.read")) throw new Error("github.read is not granted to the active skills.");
-          if (!readOnly.some(tool => tool.slug === name)) throw new Error("Tool not enabled. Only connected GitHub read actions are currently allowed.");
-          result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/execute`, { method: "POST", body: JSON.stringify({ tool_slug: name, arguments: args }) });
+          if (!safeMetaTools.has(name)) throw new Error("This Composio action is not enabled in ULTRON.");
+          if (name === "COMPOSIO_SEARCH_TOOLS") {
+            const queries = Array.isArray(args.queries) ? args.queries : [];
+            args.queries = queries.map(query => ({
+              ...query,
+              use_case: "Search GitHub for read-only repository information: " + String(query.use_case || "repository details").slice(0, 700),
+            }));
+            args.session = searchSessionId ? { id: searchSessionId } : { generate_id: true };
+          }
+          if (name === "COMPOSIO_GET_TOOL_SCHEMAS" || name === "COMPOSIO_MULTI_EXECUTE_TOOL") {
+            if (searchSessionId) args.session_id = searchSessionId;
+          }
+          if (name === "COMPOSIO_MULTI_EXECUTE_TOOL") {
+            if (!Array.isArray(args.tools) || !args.tools.length) throw new Error("No GitHub read tools were supplied.");
+            const readOnlyPattern = /^GITHUB_(?:GET|LIST|SEARCH|FETCH|READ|FIND|VIEW|CHECK|LOOKUP|DOWNLOAD|DESCRIBE|INSPECT)(?:_|$)/i;
+            for (const item of args.tools) {
+              if (!item || !readOnlyPattern.test(String(item.tool_slug || ""))) {
+                throw new Error("ULTRON currently permits GitHub read-only tools only. This requested action was blocked.");
+              }
+            }
+          }
+          result = await mcp.callTool(name, args);
+          if (name === "COMPOSIO_SEARCH_TOOLS") {
+            searchSessionId = findComposioField(result, ["session_id", "sessionId"]) || searchSessionId;
+          }
         }
       } catch (error) { result = { error: error.message || "Tool execution failed." }; }
       body.contents.push({ role: "user", parts: [{ functionResponse: { name, response: { result: JSON.stringify(result).slice(0, 18000) } } }] });
@@ -404,22 +483,6 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
   }
   if (!finalText.trim()) throw new Error("The model completed tool calls but returned no final text.");
   return { text: finalText, model };
-}
-function composioInputSchema(inputParameters) {
-  const properties = {}, required = [];
-  for (const [key, value] of Object.entries(inputParameters || {})) {
-    if (!value || typeof value !== "object") continue;
-    const rawType = String(value.type || "string").toLowerCase();
-    const type = ({ string:"STRING", number:"NUMBER", integer:"INTEGER", boolean:"BOOLEAN", array:"ARRAY", object:"OBJECT" })[rawType] || "STRING";
-    const property = { type };
-    if (value.description) property.description = String(value.description).slice(0, 500);
-    if (Array.isArray(value.enum)) property.enum = value.enum;
-    if (type === "ARRAY") property.items = value.items || { type:"STRING" };
-    if (type === "OBJECT") property.properties = value.properties || {};
-    properties[key] = property;
-    if (value.required === true) required.push(key);
-  }
-  return { type:"OBJECT", properties, ...(required.length ? { required } : {}) };
 }
 async function callGeminiJson(chain, body, apiKey) {
   let last = { status:502, message:"Could not reach Gemini." };
