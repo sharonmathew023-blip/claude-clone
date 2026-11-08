@@ -1561,7 +1561,7 @@ const timer = setTimeout(done, ms);
 signal.addEventListener('abort', done, { once: true });
 });
 }
-async function requestWorkerReply(endpoint, messages, signal, onStatus, onChunk) {
+async function requestWorkerReply(endpoint, messages, signal, onStatus, onChunk, toolSessionId) {
 const models = modelChain();
 let lastError = null;
 let emittedAnyText = false;
@@ -1571,7 +1571,7 @@ const model = models[index];
 onStatus(index === 0 ? `Connecting to ${model}…` : `Switching to ${model}…`);
 for (let attempt = 0; ; attempt++) {
 try {
-return await requestOnce(endpoint, { model, stream: true, messages }, signal, emitChunk);
+return await requestOnce(endpoint, { model, stream: true, messages, ...(toolSessionId ? { composioSessionId: toolSessionId, enableTools: true } : {}) }, signal, emitChunk);
 } catch (error) {
 if (error.stopped || emittedAnyText) throw error;
 lastError = error;
@@ -1732,7 +1732,7 @@ if (artifact) {
 }
 saveState();
 if (state.activeThreadId === thread.id) renderChat();
-});
+}, state.composioSessionId || null);
 } else {
 // Built-in offline sandbox: no network request is made.
 if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('calculator') || prompt.toLowerCase().includes('html')) {
