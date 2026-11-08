@@ -993,11 +993,7 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 <label>Cloudflare Worker URL</label>
 <input type="text" id="workerUrlInput" value="https://openclaude-api.sharonmathew023.workers.dev/chat/completions" />
 </div>
-<div class="field-group">
-<label>Worker access token (private tools only)</label>
-<input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Session-only owner token (cleared on refresh)" />
-<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Required to use your private Worker. This is only for private browser/connector tools. Google sign-in is used for chat. Never share this token.</p>
-</div>
+<p style="font-size:0.78rem;color:var(--text-muted);">Private connector tools are available only to the ULTRON owner account after Google sign-in.</p>
 <div class="field-group">
 <label>Gemini model</label>
 <input type="text" id="modelInput" value="gemini-3.5-flash" spellcheck="false" />
@@ -1142,7 +1138,6 @@ activeThreadId: 'thread-1',
 filter: 'all',
 search: '',
 workerUrl: 'https://openclaude-api.sharonmathew023.workers.dev/chat/completions',
-accessToken: '',
 composioSessionId: '',
 model: 'gemini-3.5-flash',
 systemPrompt: 'You are ULTRON, a helpful, concise AI assistant.',
@@ -1803,7 +1798,7 @@ const d = detail ? ` Details: ${String(detail).slice(0, 300)}` : '';
 if (status === 400 && /api key/i.test(detail || '')) return 'Gemini rejected the API key. Check the GEMINI_API_KEY secret on your Worker.';
 switch (status) {
 case 400: return `The request was rejected (400).${d}`;
-case 401: return state.accessToken ? 'The Worker rejected your access token (401). Check it in Settings against the ACCESS_TOKEN secret in Cloudflare.' : 'This Worker needs an access token (401). Paste it in Settings > Access token.';
+case 401: return 'Your Google sign-in is missing or expired. Sign in again and retry.';
 case 403: return `Access was refused (403). Check the Worker secrets and allowed sites.${d}`;
 case 404: return `Model or route not found (404). Check the Worker URL and the model name.${d}`;
 case 413: return 'This conversation is too long for one request. Start a new chat.';
@@ -1843,7 +1838,9 @@ return error;
 async function composioRequest(route, payload) {
 const base = normalizeWorkerUrl(state.workerUrl).replace(/\/chat\/completions\/?$/, '');
 const headers = { 'Content-Type': 'application/json' };
-if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
+const credential = getGoogleCredential();
+if (!credential) throw new Error('Sign in with Google to use connected apps.');
+headers.Authorization = 'Bearer ' + credential;
 const response = await fetch(base + route, { method: payload ? 'POST' : 'GET', headers, body: payload ? JSON.stringify(payload) : undefined });
 const data = await response.json().catch(() => ({}));
 if (!response.ok) { const detail = data.error?.message || data.error || data.message || data; const readable = typeof detail === 'string' ? detail : JSON.stringify(detail); throw new Error((readable && readable !== '{}' ? readable : 'HTTP ' + response.status) + ' (HTTP ' + response.status + ')'); }
@@ -1874,7 +1871,6 @@ function workerHeaders() {
 const headers = { 'Content-Type': 'application/json' };
 const credential = getGoogleCredential();
 if (credential) headers.Authorization = 'Bearer ' + credential;
-if (state.accessToken) headers['X-ULTRON-Admin-Token'] = state.accessToken;
 return headers;
 }
 async function requestOnce(url, payload, userSignal, onChunk, timeoutMs = 60000) {
@@ -1951,8 +1947,8 @@ throw lastError;
 }
 async function inspectPublicWebsite(url, signal) {
 const endpoint = normalizeWorkerUrl(state.workerUrl).replace(/\/chat\/completions\/?$/, '/browse');
-const headers = { 'Content-Type': 'application/json' };
-if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
+const headers = workerHeaders();
+if (!headers.Authorization) throw new Error('Sign in with Google to inspect websites.');
 const response = await fetch(endpoint, { method:'POST', headers, body:JSON.stringify({url}), signal });
 const data = await response.json().catch(() => ({}));
 if (!response.ok || !data.ok) throw new Error(data.error?.message || data.message || 'Could not inspect that website.');
@@ -2325,7 +2321,6 @@ document.getElementById('openSettingsBtn').addEventListener('click', () => {
 document.getElementById('workerUrlInput').value = state.workerUrl;
 document.getElementById('modelInput').value = state.model || 'gemini-3.5-flash';
 document.getElementById('sysPromptInput').value = state.systemPrompt;
-document.getElementById('accessTokenInput').value = state.accessToken || '';
 renderSkillList();
 document.getElementById('settingsModal').classList.add('open');
 });
@@ -2378,7 +2373,6 @@ document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   state.workerUrl = document.getElementById('workerUrlInput').value.trim() || defaultState.workerUrl;
   state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
   state.systemPrompt = document.getElementById('sysPromptInput').value.trim() || defaultState.systemPrompt;
-  state.accessToken = document.getElementById('accessTokenInput').value.trim();
   document.getElementById('providerBadge').textContent = 'Worker';
   saveState();
   closeSettingsModal();
