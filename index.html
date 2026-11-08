@@ -893,6 +893,12 @@ body{background-color:var(--bg-canvas)}
 #settingsModal .settings-heading{position:sticky!important;top:0!important;z-index:5!important;padding:8px 0 12px!important;margin:0 0 14px!important;background:var(--bg-surface)!important}
 #settingsModal .settings-footer{position:sticky!important;bottom:0!important;z-index:5!important;padding:12px 0 max(8px,env(safe-area-inset-bottom))!important;margin:14px 0 0!important;background:var(--bg-surface)!important;border-top:1px solid var(--border-hairline)!important}
 </style>
+<style>
+.web-search-toggle{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:0 11px;border:1px solid var(--border-hairline);border-radius:999px;background:var(--bg-elevated);color:var(--text-secondary);font:600 .76rem var(--font-sans);white-space:nowrap;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.web-search-toggle.active{background:rgba(126,170,255,.14);border-color:rgba(126,170,255,.55);color:#8db6ff;box-shadow:0 0 14px rgba(100,150,255,.12)}
+[data-theme="light"] .web-search-toggle.active{background:rgba(50,105,210,.1);color:#245eb8;border-color:rgba(50,105,210,.4)}
+@media(max-width:370px){.web-search-toggle{padding:0 8px;font-size:.72rem}}
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -945,7 +951,7 @@ body{background-color:var(--bg-canvas)}
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
 <textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="enter" placeholder="Ask ULTRON..." aria-label="Message"></textarea>
 <div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
-<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
+<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="web-search-toggle" id="webSearchToggle" type="button" aria-pressed="false" title="Use Google Search for this answer">⌕ Search</button><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
 </div><div class="home-indicator" aria-hidden="true"></div></div>
 </main>
 <aside class="artifact-pane" id="artifactPane">
@@ -1024,6 +1030,16 @@ const GOOGLE_SESSION_KEY = 'ultron_google_id_token_v1';
 let googleAccountEmail = '';
 let googleAccountName = '';
 let currentComposerMode = 'chat';
+let webSearchEnabled = false;
+function toggleWebSearch() {
+  webSearchEnabled = !webSearchEnabled;
+  const button = document.getElementById('webSearchToggle');
+  if (!button) return;
+  button.classList.toggle('active', webSearchEnabled);
+  button.setAttribute('aria-pressed', String(webSearchEnabled));
+  button.title = webSearchEnabled ? 'Google Search is enabled for the next answer' : 'Use Google Search for this answer';
+}
+document.getElementById('webSearchToggle').addEventListener('click', toggleWebSearch);
 function decodeGooglePayload(token) {
   try {
     const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
@@ -1881,7 +1897,7 @@ const model = models[index];
 onStatus(index === 0 ? `Connecting to ${model}…` : `Switching to ${model}…`);
 for (let attempt = 0; ; attempt++) {
 try {
-return await requestOnce(endpoint, { model, stream: true, messages, ...(toolSessionId !== null && toolSessionId !== undefined ? { composioSessionId: typeof toolSessionId === 'string' ? toolSessionId : '', enableTools: true } : {}) }, signal, emitChunk);
+return await requestOnce(endpoint, { model, stream: true, messages, ...(webSearchEnabled ? { web_search: true } : {}), ...(toolSessionId !== null && toolSessionId !== undefined ? { composioSessionId: typeof toolSessionId === 'string' ? toolSessionId : '', enableTools: true } : {}) }, signal, emitChunk);
 } catch (error) {
 if (error.stopped || emittedAnyText) throw error;
 lastError = error;

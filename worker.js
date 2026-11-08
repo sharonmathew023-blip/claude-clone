@@ -460,6 +460,8 @@ function buildGeminiBody(input) {
   while (contents.length && contents[0].role !== "user") contents.shift();
 
   const body = { contents };
+  // Gemini built-in Google Search grounding is opt-in per request.
+  if (input.web_search === true) body.tools = [{ google_search: {} }];
   if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };
 
   const cfg = {};
@@ -581,6 +583,7 @@ function toOpenAIStream(upstreamBody, model) {
   let sawText = false;
   let errored = false;
   let finish = "";
+  const groundingSources = new Map();
 
   const frame = (obj) => enc.encode(`data: ${JSON.stringify(obj)}\n\n`);
   const chunk = (delta, finishReason = null) =>
@@ -606,6 +609,14 @@ function toOpenAIStream(upstreamBody, model) {
     }
     const cand = obj.candidates && obj.candidates[0];
     if (!cand) return;
+    const chunks = cand.groundingMetadata && cand.groundingMetadata.groundingChunks;
+    if (Array.isArray(chunks)) {
+      for (const item of chunks) {
+        const web = item && item.web;
+        const uri = String(web && web.uri || "");
+        if (uri.startsWith("https://")) groundingSources.set(uri, String(web.title || new URL(uri).hostname).slice(0, 180));
+      }
+    }
     const text = ((cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || "").join("");
     if (text) {
       sawText = true;
@@ -631,6 +642,11 @@ function toOpenAIStream(upstreamBody, model) {
         ctl.enqueue(errorFrame(filtered ? 422 : 502, filtered
           ? `Gemini stopped without an answer (${finish}). Try rephrasing your message.`
           : "The model returned an empty response."));
+      }
+      if (!errored && groundingSources.size) {
+        const sourceList = [...groundingSources.entries()].slice(0, 8)
+          .map(([url, title]) => `- [${title.replace(/[\[\]\r\n]/g, " ")}](${url})`).join("\n");
+        ctl.enqueue(chunk({ content: `\n\n**Sources**\n${sourceList}` }));
       }
       if (!errored) ctl.enqueue(chunk({}, finish === "MAX_TOKENS" ? "length" : /SAFETY|RECITATION|BLOCKLIST|PROHIBITED|SPII/i.test(finish) ? "content_filter" : "stop"));
       ctl.enqueue(enc.encode("data: [DONE]\n\n"));
