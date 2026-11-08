@@ -28,6 +28,12 @@ Read this file before editing code. These rules apply to every change in this re
 5. Retry only plausibly transient errors. Do not retry invalid credentials or malformed requests. Avoid retry storms and repeated attempts against exhausted quotas.
 6. Preserve the OpenAI-compatible request/stream response contract unless a migration is explicitly planned and tested.
 
+## Composio integration
+1. ULTRON uses Composio Connect consumer MCP at `https://connect.composio.dev/mcp`.
+2. `COMPOSIO_API_KEY` is the Cloudflare Worker secret name retained for compatibility; its value must be the Composio Consumer API key (`ck_...`), sent only as `x-consumer-api-key`.
+3. Never send a consumer key to the Platform REST API or use it in an `x-api-key` header. Never expose it to the browser.
+4. Keep the connector routes owner-only. Current chat tool execution is restricted to GitHub read-only actions; do not widen this to writes or other toolkits without an explicit approval design and tests.
+
 ## Skills rules
 1. Accept uploaded skills only as `.md` and `.txt`. Enforce validation in the import path, not only in UI copy.
 2. Preserve slash commands derived from normalized names, such as `/web-research`. Reject command collisions safely.
