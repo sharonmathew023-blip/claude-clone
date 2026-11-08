@@ -5,6 +5,7 @@ const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 const frontendPaths = ["../index.html", "../app.js", "../skill-engine.js", "../skill-rules.js", "../builtin-skills.js"];
 const frontend = frontendPaths.map(read).join("\n");
 const worker = read("../worker.js");
+const skillEngine = read("../skill-engine.js");
 const wrangler = read("../wrangler.toml");
 
 // Never commit recognizable provider credentials into browser-delivered files.
@@ -23,6 +24,10 @@ for (const fragment of ["accessTokenInput", "state.accessToken", "X-ULTRON-Admin
   assert.equal(frontend.includes(fragment), false, `browser code must not contain ${fragment}`);
 }
 assert.match(frontend, /delete restored\.accessToken/, "legacy stored admin tokens are scrubbed on restore");
+assert.ok(skillEngine.includes("if (!/\\.(md|txt)$/i.test(file.name))"), "direct skill uploads accept only .md and .txt");
+assert.ok(skillEngine.includes("if (!/\\.(md|txt)$/i.test(fileName))"), "skill-pack entries accept only .md and .txt");
+assert.doesNotMatch(skillEngine, /\\.\(md\|txt\|markdown\)/, "legacy .markdown extension is not accepted");
+assert.match(frontend, /accept="\.md,\.txt,text\/markdown,text\/plain"/, "file picker matches the supported extensions");
 assert.doesNotMatch(frontend, /localStorage\.setItem\(STORAGE_KEY,\s*JSON\.stringify\(state\)\)/, "raw state must never be persisted");
 
 // Worker secrets remain environment bindings; privileged routes use verified Google identity.
