@@ -1941,7 +1941,11 @@ document.addEventListener('click',e=>{if(!e.target.closest('#slashCommandMenu')&
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
 function usesTouchKeyboard() {
-return Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+return Boolean(
+  (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+  (navigator.maxTouchPoints || 0) > 0 ||
+  ('ontouchstart' in window)
+);
 }
 const promptEl = document.getElementById('promptInput');
 let lastEnterHadShift = false;
