@@ -53,6 +53,7 @@ export default {
     if (request.method === "POST" && path === "/browse") {
       const auth = await authenticateGoogleRequest(request, env);
       if (!auth.identity) return fail(auth.status, auth.message);
+      if (!isUltronOwner(auth.identity, env)) return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Website inspection is restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
       try {
         const input = await request.json().catch(() => ({}));
         let target;

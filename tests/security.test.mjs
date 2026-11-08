@@ -31,6 +31,7 @@ assert.match(worker, /env\.COMPOSIO_API_KEY/);
 assert.doesNotMatch(worker, /env\.ACCESS_TOKEN|X-ULTRON-Admin-Token/);
 assert.match(worker, /function authenticateGoogleRequest\(/);
 assert.match(worker, /function isUltronOwner\(/);
+assert.match(worker, /path === "\/browse"[\s\S]*?isUltronOwner\(auth\.identity, env\)/);
 assert.ok((worker.match(/isUltronOwner\(/g) || []).length >= 3, "Composio routes and tool execution must enforce owner identity");
 assert.match(worker, /env\.ULTRON_OWNER_EMAIL/);
 
