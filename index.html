@@ -1946,7 +1946,7 @@ return Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').match
 const promptEl = document.getElementById('promptInput');
 let lastEnterHadShift = false;
 promptEl.addEventListener('keydown', e => {
-const isEnter = e.key === 'Enter' || e.keyCode === 13;
+const isEnter = e.key === 'Enter' || e.keyCode === 13 || (e.keyCode === 229 && e.code === 'Enter');
 if (isEnter) lastEnterHadShift = e.shiftKey;
 if (isEnter && !e.shiftKey && (!e.isComposing || usesTouchKeyboard())) {
   // Android keyboards may report Enter as an IME/composition key.
