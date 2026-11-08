@@ -1853,6 +1853,7 @@ button.disabled = true; status.textContent = 'Preparing secure GitHub connection
 try {
 if (!state.composioSessionId) { const session = await composioRequest('/composio/session', {}); state.composioSessionId = session.sessionId; saveState(); }
 const link = await composioRequest('/composio/connect', { sessionId: state.composioSessionId, toolkit: 'github' });
+if (link.connected) { status.textContent = 'GitHub is already connected.'; button.disabled = false; return; }
 if (!link.redirectUrl) throw new Error('Composio did not return an authorization link.');
 status.textContent = 'Opening GitHub authorization…'; window.location.href = link.redirectUrl;
 } catch (error) { status.textContent = 'Connector error: ' + error.message; button.disabled = false; }
