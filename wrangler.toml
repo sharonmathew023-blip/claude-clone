@@ -1,3 +1,22 @@
 name = "openclaude-api"
 main = "worker.js"
 compatibility_date = "2026-11-07"
+
+[vars]
+GOOGLE_CLIENT_ID = "299929778437-b5t5kpo1b83nmlp44aj4oerhbkl876gj.apps.googleusercontent.com"
+
+[[ratelimits]]
+name = "ULTRON_USER_LIMITER"
+namespace_id = "2999297784371"
+
+[ratelimits.simple]
+limit = 10
+period = 60
+
+[[ratelimits]]
+name = "ULTRON_IP_LIMITER"
+namespace_id = "2999297784372"
+
+[ratelimits.simple]
+limit = 30
+period = 60
