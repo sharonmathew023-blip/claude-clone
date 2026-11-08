@@ -38,6 +38,8 @@ assert.match(worker, /env\.ULTRON_OWNER_EMAIL/);
 assert.doesNotMatch(wrangler, /(?:GEMINI_API_KEY|COMPOSIO_API_KEY|ACCESS_TOKEN|ULTRON_OWNER_EMAIL)\s*=/);
 
 // Verify the configured default chain and that the chain builder preserves order.
+assert.match(wrangler, /DEFAULT_MODEL = "gemini-3\.5-flash"/);
+assert.match(wrangler, /FALLBACK_MODELS = "gemini-3\.6-flash,gemini-flash-lite-latest"/);
 assert.match(worker, /const DEFAULT_MODEL = "gemini-3\.5-flash"/);
 assert.match(worker, /const DEFAULT_FALLBACKS = "gemini-3\.6-flash,gemini-flash-lite-latest"/);
 assert.match(worker, /add\(env\.FALLBACK_MODEL\)[\s\S]*FALLBACK_MODELS[^\n]*split\(\",\"\)/);
