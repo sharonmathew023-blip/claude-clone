@@ -190,6 +190,17 @@ export default {
     const geminiBody = buildGeminiBody(input);
     if (!geminiBody.contents.length) return fail(400, "No user or assistant messages were provided.");
 
+    if (input.enableTools === true && input.composioSessionId) {
+      try {
+        const agentReply = await runComposioToolAgent(input, model, env);
+        return new Response(toStaticOpenAIStream(agentReply.text, agentReply.model), {
+          headers: { ...cors.headers, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
+        });
+      } catch (error) {
+        return fail(502, error.message || "Connected tool execution failed.");
+      }
+    }
+
     const result = await callGemini(buildModelChain(model, env), JSON.stringify(geminiBody), env.GEMINI_API_KEY);
     if (result.error) {
       const extra = result.error.retryAfter ? { "Retry-After": result.error.retryAfter } : undefined;
@@ -206,6 +217,143 @@ export default {
     });
   },
 };
+
+
+/* ---------- skill tool execution ---------- */
+async function runComposioToolAgent(input, requestedModel, env) {
+  const sessionId = String(input.composioSessionId || "");
+  if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid Composio session. Reconnect GitHub in Settings.");
+  if (!env.COMPOSIO_API_KEY) throw new Error("Add a valid COMPOSIO_API_KEY in Cloudflare Worker secrets to enable connected tools.");
+  const apiBase = "https://backend.composio.dev/api/v3.1";
+  const composioCall = async (path, options = {}) => {
+    const response = await fetch(apiBase + path, { ...options, headers: { "Content-Type": "application/json", "x-api-key": env.COMPOSIO_API_KEY, ...(options.headers || {}) }, signal: AbortSignal.timeout(20000) });
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw.slice(0, 400) }; }
+    if (!response.ok) throw new Error(data.message || data.error?.message || data.detail || `Composio returned HTTP ${response.status}.`);
+    return data;
+  };
+  const available = [];
+  let cursor = "";
+  for (let page = 0; page < 4; page++) {
+    const query = cursor ? `?limit=500&cursor=${encodeURIComponent(cursor)}` : "?limit=500";
+    const result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/tools${query}`);
+    available.push(...(Array.isArray(result.items) ? result.items : []));
+    cursor = result.next_cursor || "";
+    if (!cursor) break;
+  }
+  // Only GitHub read actions are exposed. Writes stay disabled until an approval UI exists.
+  const readOnly = available.filter(tool => tool && tool.toolkit?.slug === "github" &&
+    /(?:^|_)(?:GET|LIST|SEARCH|FETCH|READ|FIND|VIEW|CHECK|LOOKUP|DOWNLOAD|DESCRIBE|INSPECT)(?:_|$)/i.test(tool.slug || "") && !tool.is_deprecated
+  ).slice(0, 80);
+  const declarations = readOnly.map(tool => ({
+    name: tool.slug,
+    description: String(tool.description || tool.human_description || tool.name || tool.slug).slice(0, 900),
+    parameters: composioInputSchema(tool.input_parameters || {}),
+  }));
+  declarations.push({
+    name: "OPEN_PUBLIC_WEBPAGE",
+    description: "Read text from a public HTTPS webpage. Does not run JavaScript, click, sign in, or interact with the page.",
+    parameters: { type: "OBJECT", properties: { url: { type: "STRING", description: "Public HTTPS URL" } }, required: ["url"] },
+  });
+  const body = buildGeminiBody(input);
+  if (!body.contents.length) throw new Error("No user or assistant messages were provided.");
+  body.tools = [{ functionDeclarations: declarations }];
+  const chain = buildModelChain(requestedModel, env);
+  let model = chain[0], finalText = "";
+  for (let round = 0; round < 5; round++) {
+    const generated = await callGeminiJson(chain, body, env.GEMINI_API_KEY);
+    if (generated.error) throw new Error(generated.error.message);
+    model = generated.model;
+    const candidate = generated.data.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+    const calls = parts.filter(part => part?.functionCall);
+    if (!calls.length) { finalText = parts.map(part => part.text || "").join(""); break; }
+    body.contents.push(candidate.content);
+    for (const part of calls) {
+      const call = part.functionCall, name = String(call.name || "");
+      const args = call.args && typeof call.args === "object" ? call.args : {};
+      let result;
+      try {
+        if (name === "OPEN_PUBLIC_WEBPAGE") result = await readPublicPageForAgent(String(args.url || ""));
+        else {
+          if (!readOnly.some(tool => tool.slug === name)) throw new Error("Tool not enabled. Only connected GitHub read actions are currently allowed.");
+          result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/execute`, { method: "POST", body: JSON.stringify({ tool_slug: name, arguments: args }) });
+        }
+      } catch (error) { result = { error: error.message || "Tool execution failed." }; }
+      body.contents.push({ role: "user", parts: [{ functionResponse: { name, response: { result: JSON.stringify(result).slice(0, 18000) } } }] });
+    }
+  }
+  if (!finalText) {
+    const last = await callGeminiJson(chain, { ...body, tools: undefined }, env.GEMINI_API_KEY);
+    if (last.error) throw new Error(last.error.message);
+    model = last.model;
+    finalText = (last.data.candidates?.[0]?.content?.parts || []).map(part => part.text || "").join("");
+  }
+  if (!finalText.trim()) throw new Error("The model completed tool calls but returned no final text.");
+  return { text: finalText, model };
+}
+function composioInputSchema(inputParameters) {
+  const properties = {}, required = [];
+  for (const [key, value] of Object.entries(inputParameters || {})) {
+    if (!value || typeof value !== "object") continue;
+    const rawType = String(value.type || "string").toLowerCase();
+    const type = ({ string:"STRING", number:"NUMBER", integer:"INTEGER", boolean:"BOOLEAN", array:"ARRAY", object:"OBJECT" })[rawType] || "STRING";
+    const property = { type };
+    if (value.description) property.description = String(value.description).slice(0, 500);
+    if (Array.isArray(value.enum)) property.enum = value.enum;
+    if (type === "ARRAY") property.items = value.items || { type:"STRING" };
+    if (type === "OBJECT") property.properties = value.properties || {};
+    properties[key] = property;
+    if (value.required === true) required.push(key);
+  }
+  return { type:"OBJECT", properties, ...(required.length ? { required } : {}) };
+}
+async function callGeminiJson(chain, body, apiKey) {
+  let last = { status:502, message:"Could not reach Gemini." };
+  for (const model of chain) {
+    try {
+      const response = await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+        method:"POST", headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
+        body:JSON.stringify(body), signal:AbortSignal.timeout(45000),
+      });
+      const raw = await response.text(); let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch {}
+      if (response.ok) return { data, model };
+      last = { status:response.status, message:extractMessage(raw) || `Gemini returned HTTP ${response.status}.` };
+      if (![404,429,500,502,503,504].includes(response.status)) break;
+    } catch (error) { last = { status:502, message:error.message || "Could not reach Gemini." }; }
+  }
+  return { error:last };
+}
+async function readPublicPageForAgent(value) {
+  let target;
+  try { target = new URL(value); } catch { throw new Error("Enter a valid URL."); }
+  if (target.protocol !== "https:" || !isPublicWebHost(target.hostname)) throw new Error("Only public HTTPS websites can be opened.");
+  let response;
+  for (let hop=0; hop<4; hop++) {
+    response = await fetch(target.toString(), { redirect:"manual", headers:{"User-Agent":"OpenClaude-PageReader/1.0","Accept":"text/html,text/plain;q=0.9"}, signal:AbortSignal.timeout(12000) });
+    if (![301,302,303,307,308].includes(response.status)) break;
+    const location=response.headers.get("Location"); if(!location) break;
+    target=new URL(location,target);
+    if(target.protocol!=="https:" || !isPublicWebHost(target.hostname)) throw new Error("The website redirected to a blocked address.");
+  }
+  if(!response || !response.ok) throw new Error("Could not open that website.");
+  const type=response.headers.get("Content-Type") || "";
+  if(!/(text\/html|text\/plain)/i.test(type)) throw new Error("That URL did not return an HTML or text page.");
+  const source=await response.text(); if(source.length>2000000) throw new Error("That page is too large to inspect.");
+  const page=extractPageText(source,type);
+  return { url:target.toString(), title:page.title, content:page.content.slice(0,14000) };
+}
+function toStaticOpenAIStream(text, model) {
+  const encoder=new TextEncoder(), id="chatcmpl-"+crypto.randomUUID(), created=Math.floor(Date.now()/1000);
+  const frames=[
+    {id,object:"chat.completion.chunk",created,model,choices:[{index:0,delta:{role:"assistant",content:text},finish_reason:null}]},
+    {id,object:"chat.completion.chunk",created,model,choices:[{index:0,delta:{},finish_reason:"stop"}]},
+  ];
+  const body=frames.map(frame=>"data: "+JSON.stringify(frame)+"\n\n").join("")+"data: [DONE]\n\n";
+  return new ReadableStream({start(controller){controller.enqueue(encoder.encode(body));controller.close();}});
+}
 
 function isPublicWebHost(hostname) {
   const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
