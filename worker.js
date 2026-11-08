@@ -887,8 +887,10 @@ async function verifyGoogleIdToken(token, clientId) {
     !claims.sub ||
     !emailVerified ||
     !Number.isFinite(Number(claims.exp)) ||
-    Number(claims.exp) <= now ||
-    (claims.iat && Number(claims.iat) > now + 60)
+    Number(claims.exp) < now - 60 ||
+    !Number.isFinite(Number(claims.iat)) ||
+    Number(claims.iat) > now + 60 ||
+    (claims.nbf !== undefined && (!Number.isFinite(Number(claims.nbf)) || Number(claims.nbf) > now + 60))
   ) return null;
   return claims;
 }
