@@ -190,7 +190,7 @@ export default {
     const geminiBody = buildGeminiBody(input);
     if (!geminiBody.contents.length) return fail(400, "No user or assistant messages were provided.");
 
-    if (input.enableTools === true && input.composioSessionId) {
+    if (input.enableTools === true) {
       try {
         const agentReply = await runComposioToolAgent(input, model, env);
         return new Response(toStaticOpenAIStream(agentReply.text, agentReply.model), {
@@ -222,8 +222,9 @@ export default {
 /* ---------- skill tool execution ---------- */
 async function runComposioToolAgent(input, requestedModel, env) {
   const sessionId = String(input.composioSessionId || "");
-  if (!/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid Composio session. Reconnect GitHub in Settings.");
-  if (!env.COMPOSIO_API_KEY) throw new Error("Add a valid COMPOSIO_API_KEY in Cloudflare Worker secrets to enable connected tools.");
+  const hasSession = Boolean(sessionId);
+  if (hasSession && !/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid Composio session. Reconnect GitHub in Settings.");
+  if (hasSession && !env.COMPOSIO_API_KEY) throw new Error("Add a valid COMPOSIO_API_KEY in Cloudflare Worker secrets to enable connected apps.");
   const apiBase = "https://backend.composio.dev/api/v3.1";
   const composioCall = async (path, options = {}) => {
     const response = await fetch(apiBase + path, { ...options, headers: { "Content-Type": "application/json", "x-api-key": env.COMPOSIO_API_KEY, ...(options.headers || {}) }, signal: AbortSignal.timeout(20000) });
@@ -234,13 +235,15 @@ async function runComposioToolAgent(input, requestedModel, env) {
     return data;
   };
   const available = [];
-  let cursor = "";
-  for (let page = 0; page < 4; page++) {
-    const query = cursor ? `?limit=500&cursor=${encodeURIComponent(cursor)}` : "?limit=500";
-    const result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/tools${query}`);
-    available.push(...(Array.isArray(result.items) ? result.items : []));
-    cursor = result.next_cursor || "";
-    if (!cursor) break;
+  if (hasSession) {
+    let cursor = "";
+    for (let page = 0; page < 4; page++) {
+      const query = cursor ? `?limit=500&cursor=${encodeURIComponent(cursor)}` : "?limit=500";
+      const result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/tools${query}`);
+      available.push(...(Array.isArray(result.items) ? result.items : []));
+      cursor = result.next_cursor || "";
+      if (!cursor) break;
+    }
   }
   // Only GitHub read actions are exposed. Writes stay disabled until an approval UI exists.
   const readOnly = available.filter(tool => tool && tool.toolkit?.slug === "github" &&
