@@ -214,6 +214,9 @@ export default {
     if (!geminiBody.contents.length) return fail(400, "No user or assistant messages were provided.");
 
     if (input.enableTools === true) {
+      if (!env.ACCESS_TOKEN || request.headers.get("X-ULTRON-Admin-Token") !== env.ACCESS_TOKEN) {
+        return fail(403, "Connected app tools are restricted to the ULTRON owner.");
+      }
       try {
         const agentReply = await runComposioToolAgent(input, model, env);
         return new Response(toStaticOpenAIStream(agentReply.text, agentReply.model), {
