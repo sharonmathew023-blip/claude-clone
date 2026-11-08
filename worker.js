@@ -51,8 +51,8 @@ export default {
 
     // Public-page reader used by browser-oriented custom skills.
     if (request.method === "POST" && path === "/browse") {
-      if (!env.ACCESS_TOKEN) return fail(503, "Missing ACCESS_TOKEN Worker secret.");
-      if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
+      const auth = await authenticateGoogleRequest(request, env);
+      if (!auth.identity) return fail(auth.status, auth.message);
       try {
         const input = await request.json().catch(() => ({}));
         let target;
@@ -85,9 +85,10 @@ export default {
 
     // Composio connector routes. The project API key never leaves this Worker.
     if (path.startsWith("/composio/")) {
-      if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare > Worker > Settings > Variables and Secrets, then deploy.");
-      if (!env.ACCESS_TOKEN) return fail(503, "Composio routes are locked until you add an ACCESS_TOKEN Worker secret.");
-      if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
+      const auth = await authenticateGoogleRequest(request, env);
+      if (!auth.identity) return fail(auth.status, auth.message);
+      if (!isUltronOwner(auth.identity, env)) return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Connected apps are restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
+      if (!env.COMPOSIO_API_KEY) return fail(503, "Missing COMPOSIO_API_KEY Worker secret. Add it in Cloudflare Worker Settings and deploy.");
       const api = "https://backend.composio.dev/api/v3.1";
       const callComposio = async (endpoint, options = {}) => {
         const res = await fetch(api + endpoint, {
@@ -230,8 +231,8 @@ export default {
     if (!geminiBody.contents.length) return fail(400, "No user or assistant messages were provided.");
 
     if (input.enableTools === true) {
-      if (!env.ACCESS_TOKEN || request.headers.get("X-ULTRON-Admin-Token") !== env.ACCESS_TOKEN) {
-        return fail(403, "Connected app tools are restricted to the ULTRON owner.");
+      if (!isUltronOwner(googleIdentity, env)) {
+        return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Connected app tools are restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
       }
       try {
         const agentReply = await runComposioToolAgent(input, model, env, skillAccess);
@@ -735,6 +736,24 @@ function toOpenAIStream(upstreamBody, model) {
   }));
 }
 
+/* ---------- Google account authorization ---------- */
+async function authenticateGoogleRequest(request, env) {
+  const header = request.headers.get("Authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token) return { status: 401, message: "Sign in with Google to continue." };
+  try {
+    const identity = await verifyGoogleIdToken(token, env.GOOGLE_CLIENT_ID);
+    return identity ? { identity } : { status: 401, message: "Your Google sign-in is invalid or expired. Sign in again." };
+  } catch {
+    return { status: 503, message: "Google sign-in verification is temporarily unavailable. Try again." };
+  }
+}
+
+function isUltronOwner(identity, env) {
+  const ownerEmail = String(env.ULTRON_OWNER_EMAIL || "").trim().toLowerCase();
+  return Boolean(ownerEmail && identity && identity.email_verified && String(identity.email || "").trim().toLowerCase() === ownerEmail);
+}
+
 /* ---------- Google ID token verification ---------- */
 let googleJwksCache = null;
 let googleJwksExpiresAt = 0;
@@ -812,7 +831,7 @@ function corsFor(request, env) {
   const list = configured.length ? configured : ["https://sharonmathew023-blip.github.io"];
   const headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-ULTRON-Admin-Token",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Expose-Headers": "Retry-After",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
