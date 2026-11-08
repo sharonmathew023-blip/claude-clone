@@ -887,6 +887,11 @@ body{background-color:var(--bg-canvas)}
 #sendBtn.send-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 #voiceModeBtn.voice-mode-btn svg{fill:none!important;stroke:currentColor!important;stroke-width:1.9!important;stroke-linecap:round!important;stroke-linejoin:round!important}
 @media(max-width:860px){#sendBtn.send-btn{display:none!important}.settings-save-btn{min-height:44px;padding:0 22px}}
+
+#settingsModal.modal-backdrop{overflow-y:auto!important;padding:18px 14px max(18px,env(safe-area-inset-bottom))!important;align-items:center!important}
+#settingsModal .modal-card{width:min(100%,560px)!important;max-height:calc(100dvh - 36px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;position:relative!important;scrollbar-width:thin}
+#settingsModal .settings-heading{position:sticky!important;top:0!important;z-index:5!important;padding:8px 0 12px!important;margin:0 0 14px!important;background:var(--bg-surface)!important}
+#settingsModal .settings-footer{position:sticky!important;bottom:0!important;z-index:5!important;padding:12px 0 max(8px,env(safe-area-inset-bottom))!important;margin:14px 0 0!important;background:var(--bg-surface)!important;border-top:1px solid var(--border-hairline)!important}
 </style>
 </head>
 <body>
@@ -1006,7 +1011,7 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 </div>
 <p id="connectorStatus" style="font-size:0.75rem; color:var(--text-muted);">GitHub: Not connected</p>
 </div>
-<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+<div class="settings-footer" style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
 <button class="footer-btn" id="exportDataBtn">Export JSON</button>
 <button class="settings-save-btn" id="saveSettingsBtn" type="button">Save &amp; Close</button>
 </div>
