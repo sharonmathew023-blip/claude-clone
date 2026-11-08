@@ -780,6 +780,14 @@ body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(73,67,153
 @media(max-height:700px) and (max-width:860px){.hero-mark{width:44px;height:44px;margin-bottom:12px}.hero-mark svg{width:44px;height:44px}.hero-greeting{font-size:2rem;margin-bottom:10px}.quick-actions{margin-top:24px}}
 @media(max-width:370px){.topbar{padding:0 10px}.topbar-left{gap:6px}.model-selector{max-width:125px}.topbar-right{gap:4px}.composer-wrap{padding-left:10px;padding-right:10px}.composer-box{gap:4px}.mobile-mic-btn{width:30px;min-width:30px}.voice-mode-btn{width:38px;min-width:38px}}
 
+
+/* Keep the hero in the scroll region; composer stays in normal layout flow. */
+.main-view{display:flex!important;flex-direction:column!important;min-height:0}
+.chat-scroll{position:relative!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;overflow-y:auto!important}
+.chat-container{height:100%!important;min-height:100%!important}
+.hero-empty{min-height:100%!important;height:auto!important}
+.composer-wrap{position:relative!important;inset:auto!important;z-index:20!important;flex:0 0 auto!important;width:100%!important;transform:none!important}
+
 </style>
 <link rel="stylesheet" href="./styles.css?v=20261108-chatbox">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
