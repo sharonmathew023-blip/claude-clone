@@ -696,6 +696,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <div class="composer-wrap">
 <div class="composer-box">
 <textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Ask OpenClaud" aria-label="Message"></textarea>
+<div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div>
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
 <div id="attachmentPreview" class="attachment-preview"></div>
 <div class="composer-actions">
@@ -747,7 +748,7 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 <textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
-<label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a Markdown or text skill file. Enabled skills are added to the assistant's instructions.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skill</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" hidden></div><div id="skillList" class="skill-list"></div>
+<label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a .md or .txt skill. Type / in chat to find it, then choose /skill-name to run it. Enabled skills can also be invoked directly.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skill</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" hidden></div><div id="skillList" class="skill-list"></div>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
 <label>App connectors</label>
@@ -1284,7 +1285,7 @@ function extractArtifactFromReply(markdown) {
     code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
   }
   if (css && !new RegExp('<style[\\s>]', 'i').test(code)) {
-    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n</style>';
+    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n.slash-command-menu{position:absolute;left:14px;right:14px;bottom:calc(100% + 10px);z-index:80;max-height:52vh;overflow:auto;padding:7px;background:var(--bg-surface);border:1px solid var(--border-hairline);border-radius:14px;box-shadow:0 16px 42px rgba(0,0,0,.28)}.slash-command-menu[hidden]{display:none!important}.slash-command-heading{padding:7px 9px 5px;color:var(--text-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}.slash-command-item{display:flex;width:100%;align-items:center;gap:10px;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-primary);text-align:left;cursor:pointer}.slash-command-item.active,.slash-command-item:hover{background:var(--bg-elevated)}.slash-command-name{font-family:var(--font-mono);font-size:.82rem;min-width:112px;color:var(--accent-terracotta)}.slash-command-desc{font-size:.76rem;color:var(--text-secondary)}.composer-box{position:relative}</style>';
     const headEnd = code.toLowerCase().indexOf('</head>');
     code = headEnd >= 0 ? code.slice(0, headEnd) + style + code.slice(headEnd) : style + code;
   }
@@ -1595,12 +1596,46 @@ if (!response.ok || !data.ok) throw new Error(data.error?.message || data.messag
 return data;
 }
 
+function skillCommandName(name){return String(name||'').replace(/\.(md|txt)$/i,'').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');}
+function showLocalCommandReply(content){const thread=currentThread();if(!thread)return;thread.messages.push({role:'assistant',content});saveState();renderChat();renderSidebar();}
+const slashCommands=[{name:'/help',description:'Show all commands'},{name:'/new',description:'Start a new conversation'},{name:'/clear',description:'Clear the current conversation'},{name:'/model',description:'Show or change the model'},{name:'/settings',description:'Open settings'},{name:'/skills',description:'Manage uploaded Markdown skills'},{name:'/export',description:'Export your workspace'}];
+let slashSelection=0;
+function getSlashItems(query){const q=query.replace(/^\//,'').toLowerCase();const items=slashCommands.filter(c=>c.name.slice(1).startsWith(q));(state.customSkills||[]).forEach(skill=>{const name=skillCommandName(skill.name);if(name.startsWith(q))items.push({name:'/'+name,description:'Run skill · '+skill.name,skill:true,disabled:skill.enabled===false});});return items;}
+function renderSlashMenu(){const input=document.getElementById('promptInput'),menu=document.getElementById('slashCommandMenu');if(!input||!menu)return;const value=input.value.trim();if(!value.startsWith('/')||value.includes(' ')&&value.split(/\s+/)[0].length>1){menu.hidden=true;return;}const items=getSlashItems(value);if(!items.length){menu.hidden=true;return;}slashSelection=Math.min(slashSelection,items.length-1);menu.innerHTML='<div class="slash-command-heading">Commands and skills</div>';items.forEach((item,index)=>{const b=document.createElement('button');b.type='button';b.className='slash-command-item'+(index===slashSelection?' active':'');b.setAttribute('role','option');const n=document.createElement('span');n.className='slash-command-name';n.textContent=item.name;const d=document.createElement('span');d.className='slash-command-desc';d.textContent=item.description+(item.disabled?' · disabled':'');b.append(n,d);b.addEventListener('pointerdown',e=>e.preventDefault());b.addEventListener('click',()=>{input.value=item.name+(item.skill?' ':'');menu.hidden=true;input.focus();updateComposerAction();});menu.appendChild(b);});menu.hidden=false;}
 async function handleSend(event) {
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
-const prompt = input.value.trim();
+let prompt = input.value.trim();
+let invokedSkill = null;
 const attachments = selectedAttachments.slice();
 if (!prompt && !attachments.length) return;
+if (prompt.startsWith('/')) {
+  const commandLine = prompt.slice(1).trim();
+  const [rawCommand, ...args] = commandLine.split(/\s+/);
+  const command = (rawCommand || '').toLowerCase();
+  const argText = args.join(' ');
+  const skill = (state.customSkills || []).find(item => skillCommandName(item.name) === command);
+  if (skill) {
+    if (skill.enabled === false) { showLocalCommandReply('That skill is disabled. Enable it in Settings → Custom skills first.'); input.value=''; updateComposerAction(); return; }
+    invokedSkill = skill;
+    prompt = argText || 'Use the selected skill to help me. Follow its instructions for this task.';
+  } else if (['help','?'].includes(command)) {
+    showLocalCommandReply('**OpenClaude commands**\n\n- /new Start a new chat\n- /clear Clear this chat\n- /model Show or change the model\n- /settings Open settings\n- /skills Manage Markdown skills\n- /export Export your workspace\n- /skill-name Run an uploaded skill\n\nType / to browse commands and skills.');
+    input.value=''; updateComposerAction(); return;
+  } else if (command === 'new') { input.value=''; updateComposerAction(); createNewThread(); return; }
+  else if (command === 'clear') {
+    const active = currentThread(); if(active){active.messages=[];active.title='New Conversation';saveState();renderSidebar();renderChat();}
+    input.value='';updateComposerAction();return;
+  } else if (command === 'settings') { input.value='';updateComposerAction();document.getElementById('settingsModal').classList.add('open');return; }
+  else if (command === 'skills') { input.value='';updateComposerAction();document.getElementById('settingsModal').classList.add('open');document.getElementById('skillList')?.scrollIntoView({behavior:'smooth',block:'center'});return; }
+  else if (command === 'model') {
+    const select=document.getElementById('modelSelect');
+    if(argText){const option=[...select.options].find(o=>o.value.toLowerCase()===argText.toLowerCase()||o.textContent.toLowerCase()===argText.toLowerCase());if(option){select.value=option.value;state.model=option.value;saveState();showLocalCommandReply('Model changed to **'+option.textContent+'**.');}else showLocalCommandReply('Unknown model. Choose one from the model selector.');}
+    else showLocalCommandReply('Current model: **'+(select.selectedOptions[0]?.textContent||select.value)+'**. Use /model model-name to switch to an available model.');
+    input.value='';updateComposerAction();return;
+  } else if (command === 'export') { input.value='';updateComposerAction();document.getElementById('exportDataBtn').click();return; }
+  else { showLocalCommandReply('Unknown command: /'+command+'. Type / or use /help to see available commands.');input.value='';updateComposerAction();return; }
+}
 if (activeRequest) {
 if (event && event.type === 'click') activeRequest.abort(); // the button reads Stop while a request runs
 return;
@@ -1637,7 +1672,7 @@ statusEl.textContent = `Connecting to ${model}…`;
 try {
 if (model === 'cloudflare-worker') {
 const endpoint = normalizeWorkerUrl(state.workerUrl);
-const activeSkills = (state.customSkills || []).filter(skill => skill.enabled !== false);
+const activeSkills = (state.customSkills || []).filter(skill => skill.enabled !== false && (!invokedSkill || skill.name === invokedSkill.name));
 const browserSkill = activeSkills.some(skill => /browser|website|webpage|scrape|chrome|mcp|site clone/i.test(skill.content + ' ' + skill.name));
 const urlMatch = prompt.match(/https:\/\/[^\s<>"']+/i);
 let browserContext = '';
@@ -1654,7 +1689,7 @@ statusEl.textContent = 'Connecting to Cloudflare Worker…';
 const skillInstructions = activeSkills.map(skill => 'CUSTOM SKILL: ' + skill.name + '\n' + skill.content);
 skillInstructions.push('SKILL EXECUTION RULE: Treat enabled custom skills as task instructions and perform every step supported by the tools and context provided by OpenClaude. Never tell the user to move the skill into Claude Code, Cursor, or another agent. If a required capability is unavailable, state only that exact missing capability and continue with the supported parts.');
 replyText = await requestWorkerReply(endpoint, [
-{ role: 'system', content: [state.systemPrompt, ...skillInstructions].filter(Boolean).join('\n\n') },
+{ role: 'system', content: [state.systemPrompt, invokedSkill ? 'ACTIVE SKILL INVOKED BY USER: ' + invokedSkill.name : '', ...skillInstructions].filter(Boolean).join('\n\n') },
 ...thread.messages.filter(m => !m.isError).map((m, index, arr) => {
 const isLatestUser = m === arr[arr.length - 1] && m.role === 'user';
 if (!isLatestUser) return { role: m.role, content: m.content };
@@ -1802,7 +1837,9 @@ document.getElementById('voiceModeBtn').addEventListener('click', () => {
   if (document.getElementById('promptInput').value.trim() || selectedAttachments.length) handleSend();
   else startMobileDictation(true);
 });
-document.getElementById('promptInput').addEventListener('input', updateComposerAction);
+document.getElementById('promptInput').addEventListener('input', () => { updateComposerAction(); slashSelection=0; renderSlashMenu(); });
+document.getElementById('promptInput').addEventListener('keydown', e => {const menu=document.getElementById('slashCommandMenu');if(menu.hidden)return;const items=[...menu.querySelectorAll('.slash-command-item')];if(e.key==='ArrowDown'){e.preventDefault();slashSelection=(slashSelection+1)%items.length;renderSlashMenu();}else if(e.key==='ArrowUp'){e.preventDefault();slashSelection=(slashSelection-1+items.length)%items.length;renderSlashMenu();}else if(e.key==='Tab'&&items.length){e.preventDefault();items[slashSelection]?.click();}else if(e.key==='Escape'){menu.hidden=true;}});
+document.addEventListener('click',e=>{if(!e.target.closest('#slashCommandMenu')&&!e.target.closest('#promptInput')){const m=document.getElementById('slashCommandMenu');if(m)m.hidden=true;}});
 
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
 document.getElementById('sendBtn').addEventListener('click', handleSend);
