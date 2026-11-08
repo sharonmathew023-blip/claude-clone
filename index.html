@@ -872,6 +872,22 @@ body{background-color:var(--bg-canvas)}
 ::selection{background:color-mix(in srgb,var(--accent-terracotta) 35%,transparent)}
 </style>
 
+<style id="ultron-requested-fixes">
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px!important}
+.settings-heading h3{margin:0!important}
+.settings-close-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:0 0 36px;border:1px solid var(--border-hairline);border-radius:50%;background:var(--bg-elevated);color:var(--text-primary);font:400 22px/1 var(--font-sans);cursor:pointer}
+.settings-save-btn{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 20px;border:0;border-radius:999px;background:var(--accent-terracotta);color:#fff;font:600 13px var(--font-sans);cursor:pointer;box-shadow:0 5px 18px rgba(244,86,56,.18);transition:transform .16s,filter .16s}
+.settings-save-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.settings-save-btn:active,.settings-close-btn:active{transform:scale(.97)}
+.hero-mark{color:#fff!important;filter:drop-shadow(0 0 3px rgba(255,255,255,.42)) drop-shadow(0 0 10px rgba(255,255,255,.24)) drop-shadow(0 0 22px rgba(255,255,255,.10))!important}
+.hero-mark svg{width:72px!important;height:44px!important;fill:currentColor!important;stroke:none!important;overflow:visible}
+[data-theme="light"] .hero-mark{color:#17171a!important;filter:drop-shadow(0 0 4px rgba(0,0,0,.18)) drop-shadow(0 0 12px rgba(0,0,0,.08))!important}
+.quick-actions{margin-top:clamp(42px,8vh,72px)!important}
+#sendBtn.send-btn{display:inline-flex!important;align-items:center;justify-content:center}
+#sendBtn.send-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+#voiceModeBtn.voice-mode-btn svg{fill:none!important;stroke:currentColor!important;stroke-width:1.9!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+@media(max-width:860px){#sendBtn.send-btn{display:none!important}.settings-save-btn{min-height:44px;padding:0 22px}}
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -922,9 +938,9 @@ body{background-color:var(--bg-canvas)}
 <div class="mode-toggle" role="tablist" aria-label="Conversation mode"><button class="mode-toggle-btn active" type="button" data-mode="chat" role="tab" aria-selected="true">Chat</button><button class="mode-toggle-btn" type="button" data-mode="task" role="tab" aria-selected="false">Task</button></div>
 <div class="composer-box">
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
-<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Ask ULTRON..." aria-label="Message"></textarea>
+<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="enter" placeholder="Ask ULTRON..." aria-label="Message"></textarea>
 <div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
-<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message">↑</button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
+<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
 </div><div class="home-indicator" aria-hidden="true"></div></div>
 </main>
 <aside class="artifact-pane" id="artifactPane">
@@ -954,7 +970,7 @@ body{background-color:var(--bg-canvas)}
 </div>
 <div class="modal-backdrop" id="settingsModal">
 <div class="modal-card">
-<h3>ULTRON account</h3>
+<div class="settings-heading"><h3>ULTRON account</h3><button class="settings-close-btn" id="settingsCloseBtn" type="button" aria-label="Close settings" title="Close settings">×</button></div>
 <div class="account-row"><span id="googleAccountLabel">Not signed in</span><a href="./privacy.html" target="_blank" rel="noopener">Privacy notice</a><button id="googleSignOutBtn" type="button">Sign out</button></div>
 <h3>Cloudflare Worker Setup</h3>
 <p style="font-size:0.83rem; color:var(--text-secondary);">
@@ -979,7 +995,7 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 <textarea id="sysPromptInput" rows="3">You are ULTRON, a helpful, concise AI assistant.</textarea>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
-<label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a .md or .txt skill. Type / in chat to find it, then choose /skill-name to run it. Enabled skills can also be invoked directly.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skill</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" hidden></div><div id="skillList" class="skill-list"></div>
+<label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a .md or .txt skill. Type / in chat to find it, then choose /skill-name to run it. Enabled skills can also be invoked directly.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skills</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" multiple hidden></div><div id="skillList" class="skill-list"></div>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
 <label>App connectors</label>
@@ -992,13 +1008,14 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 </div>
 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
 <button class="footer-btn" id="exportDataBtn">Export JSON</button>
-<button class="send-btn" id="saveSettingsBtn">Save & Close</button>
+<button class="settings-save-btn" id="saveSettingsBtn" type="button">Save &amp; Close</button>
 </div>
 </div>
 </div>
 <script>
 const GOOGLE_CLIENT_ID = '299929778437-b5t5kpo1b83nmlp44aj4oerhbkl876gj.apps.googleusercontent.com';
 let googleCredential = null;
+const GOOGLE_SESSION_KEY = 'ultron_google_id_token_v1';
 let googleAccountEmail = '';
 let googleAccountName = '';
 let currentComposerMode = 'chat';
@@ -1009,13 +1026,20 @@ function decodeGooglePayload(token) {
   } catch (error) { return null; }
 }
 function getGoogleCredential() {
+  if (!googleCredential) {
+    try { googleCredential = sessionStorage.getItem(GOOGLE_SESSION_KEY) || null; } catch (_) {}
+  }
   if (!googleCredential) return null;
   const payload = decodeGooglePayload(googleCredential);
   if (!payload || !payload.exp || payload.exp <= Math.floor(Date.now()/1000)) {
     googleCredential = null;
     googleAccountEmail = '';
+    googleAccountName = '';
+    try { sessionStorage.removeItem(GOOGLE_SESSION_KEY); } catch (_) {}
     return null;
   }
+  googleAccountEmail = payload.email || 'Google account';
+  googleAccountName = payload.given_name || (payload.name ? payload.name.split(' ')[0] : '') || '';
   return googleCredential;
 }
 function showGoogleLogin(message='') {
@@ -1029,6 +1053,7 @@ function onGoogleCredential(response) {
     return;
   }
   googleCredential = response.credential;
+  try { sessionStorage.setItem(GOOGLE_SESSION_KEY, googleCredential); } catch (_) {}
   googleAccountEmail = payload.email || 'Google account';
   googleAccountName = payload.given_name || (payload.name ? payload.name.split(' ')[0] : '') || '';
   document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
@@ -1039,9 +1064,14 @@ function onGoogleCredential(response) {
 }
 function initializeGoogleSignIn(attempt=0) {
   if (window.google?.accounts?.id) {
-    window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:false,ux_mode:'popup'});
+    window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:true,ux_mode:'popup'});
     window.google.accounts.id.renderButton(document.getElementById('googleSignInButton'),{type:'standard',theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:260,logo_alignment:'left'});
-    if (!getGoogleCredential()) showGoogleLogin();
+    if (getGoogleCredential()) {
+      document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
+      const avatar=document.getElementById('topProfileBtn');if(avatar)avatar.textContent=(googleAccountName||'S').slice(0,1).toUpperCase();
+      const greeting=document.getElementById('greetingName');if(greeting)greeting.textContent=googleAccountName||'there';
+      document.getElementById('authGate').style.display='none';
+    } else showGoogleLogin();
     return;
   }
   if (attempt < 40) setTimeout(()=>initializeGoogleSignIn(attempt+1),250);
@@ -1458,11 +1488,10 @@ if (thread && thread.locked) { container.innerHTML='<div class="hero-empty"><h2 
 if (!thread || thread.messages.length === 0 || (thread.messages.length === 1 && thread.messages[0].role === 'assistant' && String(thread.messages[0].content || '').startsWith('Welcome to **ULTRON**.'))) {
 container.innerHTML = `
 <div class="hero-empty">
-<div class="hero-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M10 49 32 10 54 49H38L32 41 26 49Z"/></svg></div>
+<div class="hero-mark" aria-hidden="true"><svg viewBox="280 350 520 315"><path fill="currentColor" fill-rule="evenodd" d="M299 655 476 656 537 577 597 656 780 656 610 444 539 362Z M517 553 504 570 458 619 369 618 468 502Z M563 552 608 499 710 621 618 622Z M536 427 581 472 539 521 499 470Z"/></svg></div>
 <h1 class="hero-greeting">Afternoon, <span id="greetingName">there</span></h1>
 <div class="plan-pill"><span>Free plan</span><span class="plan-dot">·</span><button type="button" id="upgradeBtn">Upgrade</button></div>
 <div class="quick-actions">
-<button class="quick-action" type="button" data-prompt="Help me create an image or sticker. Start by asking what style and subject I want."><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span>Create an image or sticker</span></button>
 <button class="quick-action" type="button" data-prompt="Help me write or edit something. Ask me to share the text or describe what I need."><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"/></svg><span>Write or edit</span></button>
 </div></div>`;
 container.querySelectorAll('.quick-action').forEach(action => action.addEventListener('click', () => {document.getElementById('promptInput').value=action.dataset.prompt;document.getElementById('promptInput').focus();updateComposerAction();}));
@@ -2101,7 +2130,7 @@ function updateComposerAction() {
     button.title = 'Stop generation';
     button.setAttribute('aria-label', 'Stop generation');
   } else if (hasContent) {
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7 7 7 7-7"/></svg>';
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg>';
     button.title = 'Send message';
     button.setAttribute('aria-label', 'Send message');
   } else {
@@ -2129,36 +2158,13 @@ document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventLis
  document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
  document.getElementById('promptInput').placeholder=currentComposerMode==='task'?'Describe a task for ULTRON...':'Ask ULTRON...';
 }));
-function usesTouchKeyboard() {
-return Boolean(
-  (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
-  (navigator.maxTouchPoints || 0) > 0 ||
-  ('ontouchstart' in window)
-);
-}
+function isAndroidDevice() { return /Android/i.test(navigator.userAgent || ''); }
 const promptEl = document.getElementById('promptInput');
-let lastEnterHadShift = false;
 promptEl.addEventListener('keydown', e => {
-const isEnter = e.key === 'Enter' || e.keyCode === 13 || (e.keyCode === 229 && e.code === 'Enter');
-if (isEnter) lastEnterHadShift = e.shiftKey;
-if (isEnter && !e.shiftKey && (!e.isComposing || usesTouchKeyboard())) {
-  // Android keyboards may report Enter as an IME/composition key.
-  // On touch devices, treat that key as Send instead of inserting a newline.
-  e.preventDefault();
-  lastEnterHadShift = false;
-  handleSend();
-}
-});
-// Phone and tablet keyboards often send Enter as an IME key and only insert a
-// line break, so send on the break itself. A phone has no Shift key, so Enter
-// always sends there; long messages still wrap on their own.
-promptEl.addEventListener('beforeinput', e => {
-if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
-const shifted = lastEnterHadShift;
-lastEnterHadShift = false;
-if (shifted || !usesTouchKeyboard()) return;
-e.preventDefault();
-handleSend();
+  const isEnter = e.key === 'Enter' || e.keyCode === 13 || (e.keyCode === 229 && e.code === 'Enter');
+  if (!isEnter || e.isComposing || e.keyCode === 229) return;
+  if (isAndroidDevice()) return; // Android Enter always inserts a newline.
+  if (!e.shiftKey) { e.preventDefault(); handleSend(); }
 });
 document.getElementById('themeToggleBtn').addEventListener('click', () => {
 state.theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -2260,28 +2266,43 @@ renderAttachmentPreview();updateComposerAction();event.target.value='';
 });
 document.getElementById('uploadSkillBtn').addEventListener('click',()=>document.getElementById('skillFileInput').click());
 document.getElementById('skillFileInput').addEventListener('change',async event=>{
-const file=event.target.files && event.target.files[0];if(!file)return;
-if(file.size>200*1024){alert('Skill files must be 200 KB or smaller.');event.target.value='';return;}
-const content=await file.text();
-if(!(state.customSkills||[]).some(skill=>skill.name===file.name))state.customSkills.push({name:file.name,content,enabled:true});
+const files=Array.from(event.target.files||[]);if(!files.length)return;
+state.customSkills=Array.isArray(state.customSkills)?state.customSkills:[];
+let added=0,duplicates=0,tooLarge=0,failed=0;
+for(const file of files){
+  if(file.size>200*1024){tooLarge++;continue;}
+  try{
+    const content=await file.text();
+    if(state.customSkills.some(skill=>skill.name===file.name)){duplicates++;continue;}
+    state.customSkills.push({name:file.name,content,enabled:true});added++;
+  }catch(error){failed++;}
+}
 saveState();renderSkillList();event.target.value='';
+const summary=[];if(added)summary.push(added+' skill'+(added===1?'':'s')+' added');if(duplicates)summary.push(duplicates+' duplicate'+(duplicates===1?' skipped':'s skipped'));if(tooLarge)summary.push(tooLarge+' over 200 KB skipped');if(failed)summary.push(failed+' unreadable file'+(failed===1?'':'s'));
+if(summary.length)alert(summary.join(' · '));
 });
 document.getElementById('connectGithubBtn').addEventListener('click', connectGithub);
 document.getElementById('checkConnectorsBtn').addEventListener('click', checkConnectorStatus);
 document.getElementById('googleSignOutBtn').addEventListener('click', () => {
   googleCredential = null;
   googleAccountEmail = '';
+  googleAccountName = '';
+  try { sessionStorage.removeItem(GOOGLE_SESSION_KEY); } catch (_) {}
+  if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
   document.getElementById('googleAccountLabel').textContent = 'Not signed in';
   showGoogleLogin('You have signed out.');
 });
+function closeSettingsModal(){document.getElementById('settingsModal').classList.remove('open');}
+document.getElementById('settingsCloseBtn').addEventListener('click',closeSettingsModal);
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
-state.workerUrl = document.getElementById('workerUrlInput').value.trim();
-state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
-state.systemPrompt = document.getElementById('sysPromptInput').value.trim();
-state.accessToken = document.getElementById('accessTokenInput').value.trim();
-document.getElementById('providerBadge').textContent = 'Worker';
-saveState();
-document.getElementById('settingsModal').classList.remove('open');
+  state.workerUrl = document.getElementById('workerUrlInput').value.trim() || defaultState.workerUrl;
+  state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
+  state.systemPrompt = document.getElementById('sysPromptInput').value.trim() || defaultState.systemPrompt;
+  state.accessToken = document.getElementById('accessTokenInput').value.trim();
+  document.getElementById('providerBadge').textContent = 'Worker';
+  saveState();
+  closeSettingsModal();
+  renderSkillList();
 });
 document.getElementById('exportDataBtn').addEventListener('click', () => {
 const blob = new Blob([JSON.stringify({ ...state, accessToken: undefined }, null, 2)], { type: 'application/json' });
