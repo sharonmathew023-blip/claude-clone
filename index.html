@@ -1946,8 +1946,15 @@ return Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').match
 const promptEl = document.getElementById('promptInput');
 let lastEnterHadShift = false;
 promptEl.addEventListener('keydown', e => {
-if (e.key === 'Enter') lastEnterHadShift = e.shiftKey;
-if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); handleSend(); }
+const isEnter = e.key === 'Enter' || e.keyCode === 13;
+if (isEnter) lastEnterHadShift = e.shiftKey;
+if (isEnter && !e.shiftKey && (!e.isComposing || usesTouchKeyboard())) {
+  // Android keyboards may report Enter as an IME/composition key.
+  // On touch devices, treat that key as Send instead of inserting a newline.
+  e.preventDefault();
+  lastEnterHadShift = false;
+  handleSend();
+}
 });
 // Phone and tablet keyboards often send Enter as an IME key and only insert a
 // line break, so send on the break itself. A phone has no Shift key, so Enter
