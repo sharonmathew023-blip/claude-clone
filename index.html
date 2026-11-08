@@ -1608,6 +1608,7 @@ function workerHeaders() {
 const headers = { 'Content-Type': 'application/json' };
 const credential = getGoogleCredential();
 if (credential) headers.Authorization = 'Bearer ' + credential;
+if (state.accessToken) headers['X-ULTRON-Admin-Token'] = state.accessToken;
 return headers;
 }
 async function requestOnce(url, payload, userSignal, onChunk, timeoutMs = 60000) {
