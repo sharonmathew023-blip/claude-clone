@@ -723,6 +723,63 @@ body {
   background: color-mix(in srgb, var(--accent-terracotta) 35%, transparent);
 }
 
+
+/* ULTRON One premium minimal redesign */
+:root{--bg-canvas:#000;--bg-surface:#111;--bg-elevated:#1c1c1e;--bg-input:#1a1a1a;--text-primary:#f7f7f8;--text-secondary:#a1a1a8;--text-muted:#73737b;--border-hairline:rgba(255,255,255,.09);--accent-terracotta:#ff6848;--accent-hover:#ff8064;--user-bubble:#202024;--font-serif:'Newsreader',Georgia,serif;--font-sans:'Plus Jakarta Sans',-apple-system,sans-serif}
+[data-theme="light"]{--bg-canvas:#f7f7f8;--bg-surface:#fff;--bg-elevated:#ececf0;--bg-input:#fff;--text-primary:#151519;--text-secondary:#666670;--text-muted:#85858e;--border-hairline:rgba(20,20,28,.11);--accent-terracotta:#ed6245;--accent-hover:#d94f34;--user-bubble:#ededf1}
+html,body,.app-shell,.main-view{background:var(--bg-canvas)!important;color:var(--text-primary)}
+body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(73,67,153,.23),transparent 72%)!important;letter-spacing:0}
+[data-theme="light"] body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(116,106,184,.1),transparent 72%)!important}
+.sidebar{background:var(--bg-canvas);border-right:1px solid var(--border-hairline)}
+.topbar{height:64px;min-height:64px;padding:0 20px;border:0;background:transparent;display:flex;align-items:center;justify-content:space-between}
+.topbar-left,.topbar-right{display:flex;align-items:center;gap:12px}
+.mobile-menu-btn{display:inline-flex!important;width:40px;height:40px;min-width:40px;min-height:40px;border-radius:50%;background:#202023;color:#f7f7f8;border:1px solid rgba(255,255,255,.06)}
+[data-theme="light"] .mobile-menu-btn{background:#ededf0;color:#222}
+.model-selector{display:block!important;appearance:none;-webkit-appearance:none;width:auto;max-width:190px;padding:9px 28px 9px 2px;border:0;background:transparent;color:var(--text-primary);font:600 14px var(--font-sans);letter-spacing:-.02em;cursor:pointer;outline:none}
+.model-selector option{background:#171719;color:#fff}
+.topbar-left{position:relative}.topbar-left:after{content:"";position:absolute;right:2px;top:50%;width:7px;height:7px;border-right:1.5px solid var(--text-muted);border-bottom:1.5px solid var(--text-muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.topbar-right{gap:10px}
+.top-new-chat-btn{width:40px;height:40px;min-width:40px;min-height:40px;border:0;border-radius:50%;background:transparent;color:var(--text-primary)}
+.top-new-chat-btn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+.top-profile-btn{width:36px;height:36px;border:1px solid rgba(255,255,255,.12);border-radius:50%;background:linear-gradient(145deg,#34313e,#17171b);color:#fff;font:600 13px var(--font-sans);cursor:pointer}
+[data-theme="light"] .top-profile-btn{background:linear-gradient(145deg,#e3e0ed,#c9c6d5);color:#222}
+.legacy-hidden{display:none!important}
+.chat-scroll{padding:0 20px 18px;background:transparent}
+.chat-container{width:100%;height:100%;max-width:760px;min-height:100%;margin:0 auto;display:flex;flex-direction:column;justify-content:center;gap:0}
+.hero-empty{width:100%;margin:0 auto;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px 0 12px}
+.hero-mark{width:58px;height:58px;margin:0 auto 26px;display:grid;place-items:center;color:#fff;filter:drop-shadow(0 0 8px rgba(255,255,255,.25)) drop-shadow(0 0 22px rgba(255,255,255,.12))}
+.hero-mark svg{width:54px;height:54px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+[data-theme="light"] .hero-mark{color:#17171a;filter:drop-shadow(0 0 8px rgba(0,0,0,.12))}
+.hero-greeting{font:400 clamp(2.35rem,8vw,3.15rem)/1.12 var(--font-serif);letter-spacing:-.045em;color:var(--text-primary);margin:0 0 15px}
+.plan-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#171719;color:#a5a5ad;font:500 11px var(--font-sans)}
+.plan-pill .plan-dot{color:#666}.plan-pill button{border:0;background:transparent;color:#fff;font:700 11px var(--font-sans);padding:0;cursor:pointer}
+[data-theme="light"] .plan-pill{background:#ececf0;border-color:rgba(0,0,0,.06);color:#666}[data-theme="light"] .plan-pill button{color:#17171a}
+.quick-actions{width:min(100%,360px);display:flex;flex-direction:column;gap:5px;margin-top:clamp(54px,10vh,92px);text-align:left}
+.quick-action{width:100%;min-height:44px;display:flex;align-items:center;gap:13px;padding:7px 4px;border:0;background:transparent;color:var(--text-primary);font:500 13px var(--font-sans);text-align:left;cursor:pointer;transition:opacity .16s}
+.quick-action:active{opacity:.55}.quick-action svg{width:18px;height:18px;flex:0 0 18px;fill:none;stroke:var(--text-secondary);stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+.mode-toggle{width:max-content;display:flex;align-items:center;gap:3px;margin:0 auto 12px;padding:3px;border:1px solid rgba(255,255,255,.07);border-radius:999px;background:#101012}
+.mode-toggle-btn{min-width:54px;padding:6px 13px;border:0;border-radius:999px;background:transparent;color:#85858d;font:500 11px var(--font-sans);cursor:pointer}
+.mode-toggle-btn.active{background:#29292d;color:#fff}
+[data-theme="light"] .mode-toggle{background:#e9e9ed;border-color:rgba(0,0,0,.06)}[data-theme="light"] .mode-toggle-btn.active{background:#fff;color:#17171a;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.composer-wrap{flex:0 0 auto;padding:0 20px max(18px,env(safe-area-inset-bottom));background:transparent;border:0}
+.composer-box{position:relative;width:100%;max-width:760px;min-height:62px;margin:0 auto;padding:7px 8px 7px 10px;display:flex;flex-direction:row;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:var(--bg-input);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.composer-box:focus-within{border-color:rgba(255,255,255,.18);box-shadow:0 0 0 2px rgba(255,255,255,.025),0 8px 32px rgba(0,0,0,.2)}
+.composer-textarea{flex:1;width:auto;min-width:0;min-height:42px;max-height:120px;padding:12px 2px;background:transparent;color:var(--text-primary);font:400 14px/1.35 var(--font-sans);resize:none}
+.composer-textarea::placeholder{color:#8b8b93;opacity:1}
+.attachment-row{order:-1;flex:0 0 auto;margin:0}.attach-btn{width:36px;height:36px;min-width:36px;padding:0;border:0!important;border-radius:50%;background:#29292d!important;color:#f5f5f7!important;font:300 23px/1 Arial,sans-serif}
+[data-theme="light"] .attach-btn{background:#ededf0!important;color:#333!important}
+.attachment-preview{position:absolute;left:16px;right:16px;bottom:calc(100% + 9px);margin:0}
+.composer-actions{display:flex;flex:0 0 auto;align-items:center;gap:8px}
+.mobile-mic-btn{display:inline-flex;width:38px;height:38px;min-width:38px;min-height:38px;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:#aaa}
+.mobile-mic-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.voice-mode-btn{display:inline-flex;width:42px;height:42px;min-width:42px;min-height:42px;align-items:center;justify-content:center;border:0;border-radius:50%;background:linear-gradient(145deg,#ff855f,#f14b35);color:#fff;box-shadow:0 3px 16px rgba(244,86,56,.25)}
+.voice-mode-btn svg{width:20px;height:20px;stroke:currentColor;fill:none}
+.send-btn,.composer-status{display:none!important}.slash-command-menu{bottom:calc(100% + 10px)}
+.msg-user{background:var(--user-bubble);color:var(--text-primary)}.msg-assistant{color:var(--text-primary)}
+@media(max-width:860px){.topbar{height:58px;min-height:58px;padding:0 14px}.topbar-left,.topbar-right{gap:8px}.model-selector{font-size:13px;max-width:145px}.chat-scroll{padding:0 18px 14px}.chat-container{max-width:520px}.hero-empty{padding:14px 0 8px}.hero-mark{margin-bottom:22px}.hero-greeting{font-size:clamp(2.15rem,9vw,2.7rem)}.quick-actions{margin-top:clamp(46px,9vh,78px);width:min(100%,330px)}.composer-wrap{padding:0 14px max(12px,env(safe-area-inset-bottom))}.composer-box{min-height:58px;padding:6px 7px 6px 9px;gap:6px}.composer-textarea{font-size:14px}.attach-btn{width:34px;height:34px;min-width:34px}.mobile-mic-btn{width:34px;height:34px;min-width:34px;min-height:34px}.voice-mode-btn{width:40px;height:40px;min-width:40px;min-height:40px}.mode-toggle{margin-bottom:10px}}
+@media(max-height:700px) and (max-width:860px){.hero-mark{width:44px;height:44px;margin-bottom:12px}.hero-mark svg{width:44px;height:44px}.hero-greeting{font-size:2rem;margin-bottom:10px}.quick-actions{margin-top:24px}}
+@media(max-width:370px){.topbar{padding:0 10px}.topbar-left{gap:6px}.model-selector{max-width:125px}.topbar-right{gap:4px}.composer-wrap{padding-left:10px;padding-right:10px}.composer-box{gap:4px}.mobile-mic-btn{width:30px;min-width:30px}.voice-mode-btn{width:38px;min-width:38px}}
+
 </style>
 <link rel="stylesheet" href="./styles.css?v=20261108-chatbox">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
@@ -800,39 +857,29 @@ body{background-color:var(--bg-canvas)}
 <div class="drawer-backdrop" id="drawerBackdrop"></div>
 <main class="main-view">
 <header class="topbar">
-<div class="mobile-nav-left">
+<div class="topbar-left">
 <button class="icon-btn mobile-menu-btn" id="openSidebarBtn" title="Open menu" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-<button class="get-plus-btn" id="getPlusBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg><span>Get Plus</span></button>
+<select class="model-selector" id="modelSelect" aria-label="AI model"><option value="cloudflare-worker">ULTRON One</option><option value="offline-synth">Offline Sandbox</option></select>
 </div>
-<select class="model-selector" id="modelSelect" aria-label="AI model">
-<option value="cloudflare-worker">Cloudflare Worker (Gemini)</option>
-<option value="offline-synth">Offline Sandbox (No AI connection)</option>
-</select>
-<div class="mobile-nav-right">
-<span id="workingChatName" class="working-chat-name">New Conversation</span>
-<button class="icon-btn mobile-history-btn" id="mobileHistoryBtn" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
-<button class="icon-btn chat-menu-top-btn" id="chatMenuBtn" title="Chat options" aria-label="Chat options">⋮</button>
-<button class="icon-btn desktop-artifact-btn" id="toggleArtifactBtn" title="Toggle Artifact Pane">⧉</button>
+<div class="topbar-right">
+<button class="icon-btn top-new-chat-btn" id="mobileNewChatBtn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="1.8 3.2"/><path d="m8 16 1-3.4 6.8-6.8a1.7 1.7 0 0 1 2.4 2.4l-6.8 6.8L8 16Z"/></svg></button>
+<button class="top-profile-btn" id="topProfileBtn" title="Account and settings" aria-label="Account and settings">S</button>
 </div>
+<span id="workingChatName" class="working-chat-name" hidden>New Conversation</span>
+<button class="mobile-history-btn legacy-hidden" id="mobileHistoryBtn" aria-label="Conversation history"></button><button class="chat-menu-top-btn legacy-hidden" id="chatMenuBtn" aria-label="Chat options">⋮</button><button class="desktop-artifact-btn legacy-hidden" id="toggleArtifactBtn">⧉</button><button id="getPlusBtn" class="legacy-hidden" type="button">Upgrade</button>
 </header>
 <div id="chatOptionsMenu" class="chat-options-menu" role="menu" hidden></div>
 <div class="chat-scroll" id="chatScroll">
 <div class="chat-container" id="chatContainer"></div>
 </div>
 <div class="composer-wrap">
+<div class="mode-toggle" role="tablist" aria-label="Conversation mode"><button class="mode-toggle-btn active" type="button" data-mode="chat" role="tab" aria-selected="true">Chat</button><button class="mode-toggle-btn" type="button" data-mode="task" role="tab" aria-selected="false">Task</button></div>
 <div class="composer-box">
-<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Message ULTRON" aria-label="Message"></textarea>
-<div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div>
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
-<div id="attachmentPreview" class="attachment-preview"></div>
-<div class="composer-actions">
-<span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span>
-<button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message">↑</button>
-<button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button>
-</div>
-</div>
-<div class="home-indicator" aria-hidden="true"></div>
-</div>
+<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Ask ULTRON..." aria-label="Message"></textarea>
+<div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
+<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message">↑</button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
+</div><div class="home-indicator" aria-hidden="true"></div></div>
 </main>
 <aside class="artifact-pane" id="artifactPane">
 <div class="artifact-header">
@@ -907,6 +954,8 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 const GOOGLE_CLIENT_ID = '299929778437-b5t5kpo1b83nmlp44aj4oerhbkl876gj.apps.googleusercontent.com';
 let googleCredential = null;
 let googleAccountEmail = '';
+let googleAccountName = '';
+let currentComposerMode = 'chat';
 function decodeGooglePayload(token) {
   try {
     const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
@@ -935,7 +984,10 @@ function onGoogleCredential(response) {
   }
   googleCredential = response.credential;
   googleAccountEmail = payload.email || 'Google account';
+  googleAccountName = payload.given_name || (payload.name ? payload.name.split(' ')[0] : '') || '';
   document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
+  const greeting=document.getElementById('greetingName');if(greeting)greeting.textContent=googleAccountName||'there';
+  const avatar=document.getElementById('topProfileBtn');if(avatar)avatar.textContent=(googleAccountName||'S').slice(0,1).toUpperCase();
   document.getElementById('authGate').style.display='none';
   document.getElementById('googleSignInError').textContent='';
 }
@@ -1357,38 +1409,19 @@ const thread = state.threads.find(t => t.id === state.activeThreadId);
 container.innerHTML = '';
 document.getElementById('workingChatName').textContent = thread ? thread.title : 'New Conversation';
 if (thread && thread.locked) { container.innerHTML='<div class="hero-empty"><h2 class="hero-greeting">Chat locked</h2><p class="hero-sub">Use the three-dot menu to unlock this chat.</p></div>'; return; }
-if (!thread || thread.messages.length === 0) {
+if (!thread || thread.messages.length === 0 || (thread.messages.length === 1 && thread.messages[0].role === 'assistant' && String(thread.messages[0].content || '').startsWith('Welcome to **ULTRON**.'))) {
 container.innerHTML = `
 <div class="hero-empty">
-<div class="hero-spark">✻</div>
-<h1 class="hero-greeting">How can I help you think today?</h1>
-<p class="hero-sub">Your AI workspace, powered by your Cloudflare Worker.</p>
-<div class="starter-grid">
-<div class="starter-card" data-prompt="Build an interactive HTML/CSS calculator widget as an Artifact.">
-<h4>⚡ Interactive Artifact</h4>
-<p>Generate a live HTML calculator in the split sandbox</p>
-</div>
-<div class="starter-card" data-prompt="Write a clean Python script to parse SQLite databases locally.">
-<h4>🐍 Local Python Script</h4>
-<p>Zero-dependency SQLite data extractor</p>
-</div>
-<div class="starter-card" data-prompt="Explain how a Cloudflare Worker keeps an API key private.">
-<h4>🔒 Private API Key</h4>
-<p>Your key stays in Cloudflare Secrets</p>
-</div>
-<div class="starter-card" data-prompt="Help me plan a polished personal website with a clear visual direction.">
-<h4>✦ Creative direction</h4>
-<p>Turn a rough idea into a practical project plan</p>
-</div>
-</div>
-</div>
-`;
-container.querySelectorAll('.starter-card').forEach(card => {
-card.addEventListener('click', () => {
-document.getElementById('promptInput').value = card.dataset.prompt;
-handleSend();
-});
-});
+<div class="hero-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M10 49 32 10 54 49H38L32 41 26 49Z"/></svg></div>
+<h1 class="hero-greeting">Afternoon, <span id="greetingName">there</span></h1>
+<div class="plan-pill"><span>Free plan</span><span class="plan-dot">·</span><button type="button" id="upgradeBtn">Upgrade</button></div>
+<div class="quick-actions">
+<button class="quick-action" type="button" data-prompt="Help me create an image or sticker. Start by asking what style and subject I want."><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span>Create an image or sticker</span></button>
+<button class="quick-action" type="button" data-prompt="Help me write or edit something. Ask me to share the text or describe what I need."><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"/></svg><span>Write or edit</span></button>
+</div></div>`;
+container.querySelectorAll('.quick-action').forEach(action => action.addEventListener('click', () => {document.getElementById('promptInput').value=action.dataset.prompt;document.getElementById('promptInput').focus();updateComposerAction();}));
+const greeting=document.getElementById('greetingName');if(greeting&&googleAccountName)greeting.textContent=googleAccountName;
+const upgrade=document.getElementById('upgradeBtn');if(upgrade)upgrade.addEventListener('click',()=>document.getElementById('getPlusBtn').click());
 return;
 }
 thread.messages.forEach(m => {
@@ -1838,6 +1871,7 @@ if (prompt.startsWith('/')) {
   } else if (command === 'export') { input.value='';updateComposerAction();document.getElementById('exportDataBtn').click();return; }
   else { showLocalCommandReply('Unknown command: /'+command+'. Type / or use /help to see available commands.');input.value='';updateComposerAction();return; }
 }
+if(currentComposerMode==='task'&&!prompt.startsWith('/'))prompt='Handle this as a task: plan the steps, complete what you can, and give me a clear result.\n\n'+prompt;
 let thread = state.threads.find(t => t.id === state.activeThreadId);
 if (!thread) {
 createNewThread();
@@ -2040,7 +2074,15 @@ document.getElementById('promptInput').addEventListener('keydown', e => {const m
 document.addEventListener('click',e=>{if(!e.target.closest('#slashCommandMenu')&&!e.target.closest('#promptInput')){const m=document.getElementById('slashCommandMenu');if(m)m.hidden=true;}});
 
 document.getElementById('newChatBtn').addEventListener('click', createNewThread);
+document.getElementById('mobileNewChatBtn').addEventListener('click', createNewThread);
+document.getElementById('topProfileBtn').addEventListener('click', () => document.getElementById('openSettingsBtn').click());
 document.getElementById('sendBtn').addEventListener('click', handleSend);
+document.getElementById('mobileMicBtn').addEventListener('click', () => startMobileDictation(false));
+document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventListener('click',()=>{
+ currentComposerMode=button.dataset.mode||'chat';
+ document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
+ document.getElementById('promptInput').placeholder=currentComposerMode==='task'?'Describe a task for ULTRON...':'Ask ULTRON...';
+}));
 function usesTouchKeyboard() {
 return Boolean(
   (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
