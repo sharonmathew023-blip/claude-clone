@@ -2163,12 +2163,14 @@ document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventLis
  document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
  document.getElementById('promptInput').placeholder=currentComposerMode==='task'?'Describe a task for ULTRON...':'Ask ULTRON...';
 }));
-function isAndroidDevice() { return /Android/i.test(navigator.userAgent || ''); }
+function usesTouchKeyboard() {
+  return Boolean((window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints || 0) > 0 || ('ontouchstart' in window));
+}
 const promptEl = document.getElementById('promptInput');
 promptEl.addEventListener('keydown', e => {
   const isEnter = e.key === 'Enter' || e.keyCode === 13 || (e.keyCode === 229 && e.code === 'Enter');
   if (!isEnter || e.isComposing || e.keyCode === 229) return;
-  if (isAndroidDevice()) return; // Android Enter always inserts a newline.
+  if (usesTouchKeyboard()) return; // Mobile keyboards insert a newline; desktop Enter sends.
   if (!e.shiftKey) { e.preventDefault(); handleSend(); }
 });
 document.getElementById('themeToggleBtn').addEventListener('click', () => {
