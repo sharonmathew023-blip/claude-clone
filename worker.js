@@ -166,8 +166,44 @@ export default {
     if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
       return fail(404, "OpenClaude Gemini proxy is running. Use POST /chat/completions.");
     }
-    // Public chat endpoint: visitors do not need a shared Worker access token.
-    // Keep GEMINI_API_KEY server-side and protect this route with Cloudflare rate limiting.
+    // Public chat endpoint: require a verified Google Identity Services ID token.
+    // The token is checked server-side; frontend-only login is never trusted.
+    const authHeader = request.headers.get("Authorization") || "";
+    const googleToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (!googleToken) return fail(401, "Sign in with Google to use ULTRON.");
+    let googleIdentity;
+    try {
+      const tokenInfoUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
+      tokenInfoUrl.searchParams.set("id_token", googleToken);
+      const tokenInfoResponse = await fetch(tokenInfoUrl.toString(), { signal: AbortSignal.timeout(7000) });
+      if (!tokenInfoResponse.ok) return fail(401, "Your Google sign-in expired. Sign in again.");
+      googleIdentity = await tokenInfoResponse.json();
+    } catch {
+      return fail(503, "Google sign-in could not be verified right now. Please try again.");
+    }
+    const tokenExpiry = Number(googleIdentity.exp || 0);
+    const validIssuer = ["accounts.google.com", "https://accounts.google.com"].includes(String(googleIdentity.iss || ""));
+    if (
+      googleIdentity.aud !== env.GOOGLE_CLIENT_ID ||
+      !validIssuer ||
+      !googleIdentity.sub ||
+      googleIdentity.email_verified !== "true" ||
+      !Number.isFinite(tokenExpiry) ||
+      tokenExpiry <= Math.floor(Date.now() / 1000)
+    ) return fail(401, "Invalid Google sign-in. Please sign in again.");
+
+    // Per-Google-account and per-IP limits. Cloudflare's native counters are
+    // approximate and regional; keep limits conservative to protect the Gemini quota.
+    if (!env.ULTRON_USER_LIMITER || !env.ULTRON_IP_LIMITER) {
+      return fail(503, "Rate limiting is not configured on this Worker yet.");
+    }
+    const userLimit = await env.ULTRON_USER_LIMITER.limit({ key: String(googleIdentity.sub) });
+    if (!userLimit.success) return fail(429, "You've reached the ULTRON message limit. Wait a minute and try again.", { "Retry-After": "60" });
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    const ipLimit = await env.ULTRON_IP_LIMITER.limit({ key: clientIp });
+    if (!ipLimit.success) return fail(429, "Too many messages from this network. Wait a minute and try again.", { "Retry-After": "60" });
+
+    // Keep GEMINI_API_KEY server-side.
     if (!env.GEMINI_API_KEY) {
       return fail(500, "Missing GEMINI_API_KEY Worker secret. Add it in Cloudflare Worker Settings > Variables and Secrets.");
     }
