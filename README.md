@@ -1,4 +1,4 @@
-# OpenClaude
+# ULTRON
 
 A lightweight, local-first AI chat workspace. The interface runs in your browser; you connect your own model provider.
 
