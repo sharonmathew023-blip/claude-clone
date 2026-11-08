@@ -20,3 +20,5 @@ namespace_id = "2999297784372"
 [ratelimits.simple]
 limit = 30
 period = 60
+
+# Configure ULTRON_OWNER_EMAIL as a Cloudflare Worker Secret for owner-only routes.
