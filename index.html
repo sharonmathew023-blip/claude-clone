@@ -1067,6 +1067,14 @@ function onGoogleCredential(response) {
   document.getElementById('authGate').style.display='none';
   document.getElementById('googleSignInError').textContent='';
 }
+function restoreGoogleSessionUI() {
+  if (!getGoogleCredential()) return false;
+  document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
+  const avatar=document.getElementById('topProfileBtn');if(avatar)avatar.textContent=(googleAccountName||'S').slice(0,1).toUpperCase();
+  const greeting=document.getElementById('greetingName');if(greeting)greeting.textContent=googleAccountName||'there';
+  document.getElementById('authGate').style.display='none';
+  return true;
+}
 function initializeGoogleSignIn(attempt=0) {
   if (window.google?.accounts?.id) {
     window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:true,ux_mode:'popup'});
@@ -2321,6 +2329,7 @@ a.click();
 document.getElementById('providerBadge').textContent = 'Worker';
 document.getElementById('engineStatus').textContent = 'Engine: Cloudflare Worker Ready';
 applyTheme();
+if (!restoreGoogleSessionUI()) showGoogleLogin();
 initializeGoogleSignIn();
 function syncMobileComposerButton() {
   const legacySend = document.getElementById('sendBtn');
