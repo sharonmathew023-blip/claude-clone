@@ -393,14 +393,16 @@ function composioMcpSchema(schema, depth = 0) {
 }
 
 async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
-  if (!input.composioSessionId || !env.COMPOSIO_API_KEY) throw new Error("Connect GitHub in Settings and add the Composio Consumer API key as COMPOSIO_API_KEY in Cloudflare Worker secrets.");
+  const hasComposio = Boolean(input.composioSessionId);
   const allowedTools = skillAccess && skillAccess.present
     ? new Set(skillAccess.tools)
     : new Set(BASELINE_SKILL_TOOLS);
-  if (!allowedTools.has("github.read")) throw new Error("The active skills do not grant github.read.");
+  if (!allowedTools.has("github.read") && !allowedTools.has("web.read")) throw new Error("The active skills do not grant any supported tools.");
+  if (hasComposio && !env.COMPOSIO_API_KEY) throw new Error("Add the Composio Consumer API key as COMPOSIO_API_KEY in Cloudflare Worker secrets.");
+  if (!hasComposio && allowedTools.has("github.read") && !allowedTools.has("web.read")) throw new Error("Connect GitHub in Settings before using GitHub tools.");
 
-  const mcp = await createComposioMcpClient(env.COMPOSIO_API_KEY);
-  const available = await mcp.listTools();
+  const mcp = hasComposio ? await createComposioMcpClient(env.COMPOSIO_API_KEY) : null;
+  const available = mcp ? await mcp.listTools() : [];
   const safeMetaTools = new Set(["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_MULTI_EXECUTE_TOOL"]);
   const declarations = available
     .filter(tool => tool && safeMetaTools.has(tool.name))
@@ -446,6 +448,7 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
           result = await readPublicPageForAgent(String(args.url || ""));
         } else {
           if (!safeMetaTools.has(name)) throw new Error("This Composio action is not enabled in ULTRON.");
+          if (!mcp) throw new Error("Connect GitHub in Settings before using Composio tools.");
           if (name === "COMPOSIO_SEARCH_TOOLS") {
             const queries = Array.isArray(args.queries) ? args.queries : [];
             args.queries = queries.map(query => ({
