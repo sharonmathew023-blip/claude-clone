@@ -166,8 +166,8 @@ export default {
     if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
       return fail(404, "OpenClaude Gemini proxy is running. Use POST /chat/completions.");
     }
-    if (!env.ACCESS_TOKEN) return fail(503, "Missing ACCESS_TOKEN Worker secret. Add it in Cloudflare Worker Settings > Variables and Secrets.");
-    if (request.headers.get("Authorization") !== `Bearer ${env.ACCESS_TOKEN}`) return fail(401, "Missing or invalid Worker access token.");
+    // Public chat endpoint: visitors do not need a shared Worker access token.
+    // Keep GEMINI_API_KEY server-side and protect this route with Cloudflare rate limiting.
     if (!env.GEMINI_API_KEY) {
       return fail(500, "Missing GEMINI_API_KEY Worker secret. Add it in Cloudflare Worker Settings > Variables and Secrets.");
     }
