@@ -173,24 +173,11 @@ export default {
     if (!googleToken) return fail(401, "Sign in with Google to use ULTRON.");
     let googleIdentity;
     try {
-      const tokenInfoUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
-      tokenInfoUrl.searchParams.set("id_token", googleToken);
-      const tokenInfoResponse = await fetch(tokenInfoUrl.toString(), { signal: AbortSignal.timeout(7000) });
-      if (!tokenInfoResponse.ok) return fail(401, "Your Google sign-in expired. Sign in again.");
-      googleIdentity = await tokenInfoResponse.json();
+      googleIdentity = await verifyGoogleIdToken(googleToken, env.GOOGLE_CLIENT_ID);
     } catch {
-      return fail(503, "Google sign-in could not be verified right now. Please try again.");
+      return fail(503, "Google sign-in verification is temporarily unavailable. Please try again.");
     }
-    const tokenExpiry = Number(googleIdentity.exp || 0);
-    const validIssuer = ["accounts.google.com", "https://accounts.google.com"].includes(String(googleIdentity.iss || ""));
-    if (
-      googleIdentity.aud !== env.GOOGLE_CLIENT_ID ||
-      !validIssuer ||
-      !googleIdentity.sub ||
-      googleIdentity.email_verified !== "true" ||
-      !Number.isFinite(tokenExpiry) ||
-      tokenExpiry <= Math.floor(Date.now() / 1000)
-    ) return fail(401, "Invalid Google sign-in. Please sign in again.");
+    if (!googleIdentity) return fail(401, "Invalid or expired Google sign-in. Please sign in again.");
 
     // Per-Google-account and per-IP limits. Cloudflare's native counters are
     // approximate and regional; keep limits conservative to protect the Gemini quota.
@@ -646,6 +633,75 @@ function toOpenAIStream(upstreamBody, model) {
       ctl.enqueue(enc.encode("data: [DONE]\n\n"));
     },
   }));
+}
+
+/* ---------- Google ID token verification ---------- */
+let googleJwksCache = null;
+let googleJwksExpiresAt = 0;
+
+function decodeBase64Url(value) {
+  const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function getGoogleJwks(forceRefresh = false) {
+  if (!forceRefresh && googleJwksCache && Date.now() < googleJwksExpiresAt) return googleJwksCache;
+  const discoveryResponse = await fetch("https://accounts.google.com/.well-known/openid-configuration", { signal: AbortSignal.timeout(7000) });
+  if (!discoveryResponse.ok) throw new Error("Google OpenID discovery unavailable");
+  const discovery = await discoveryResponse.json();
+  if (!String(discovery.jwks_uri || "").startsWith("https://www.googleapis.com/")) throw new Error("Unexpected Google JWKS URL");
+  const keysResponse = await fetch(discovery.jwks_uri, { signal: AbortSignal.timeout(7000) });
+  if (!keysResponse.ok) throw new Error("Google signing keys unavailable");
+  const data = await keysResponse.json();
+  if (!Array.isArray(data.keys) || !data.keys.length) throw new Error("Google signing keys missing");
+  const cacheControl = keysResponse.headers.get("Cache-Control") || "";
+  const maxAge = Number((cacheControl.match(/max-age=(\d+)/i) || [])[1] || 3600);
+  googleJwksCache = data.keys;
+  googleJwksExpiresAt = Date.now() + Math.max(60, Math.min(maxAge, 86400)) * 1000;
+  return googleJwksCache;
+}
+
+async function verifyGoogleIdToken(token, clientId) {
+  if (!clientId || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  let header, claims;
+  try {
+    header = JSON.parse(new TextDecoder().decode(decodeBase64Url(parts[0])));
+    claims = JSON.parse(new TextDecoder().decode(decodeBase64Url(parts[1])));
+  } catch { return null; }
+  if (header.alg !== "RS256" || !header.kid) return null;
+  let keys = await getGoogleJwks();
+  let jwk = keys.find(key => key.kid === header.kid && key.alg === "RS256" && key.use === "sig");
+  if (!jwk) {
+    keys = await getGoogleJwks(true);
+    jwk = keys.find(key => key.kid === header.kid && key.alg === "RS256" && key.use === "sig");
+  }
+  if (!jwk) return null;
+  const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const signatureValid = await crypto.subtle.verify(
+    { name: "RSASSA-PKCS1-v1_5" },
+    publicKey,
+    decodeBase64Url(parts[2]),
+    new TextEncoder().encode(parts[0] + "." + parts[1])
+  );
+  const now = Math.floor(Date.now() / 1000);
+  const issuerValid = claims.iss === "https://accounts.google.com" || claims.iss === "accounts.google.com";
+  const emailVerified = claims.email_verified === true || String(claims.email_verified).toLowerCase() === "true";
+  if (
+    !signatureValid ||
+    claims.aud !== clientId ||
+    (claims.azp && claims.azp !== clientId) ||
+    !issuerValid ||
+    !claims.sub ||
+    !emailVerified ||
+    !Number.isFinite(Number(claims.exp)) ||
+    Number(claims.exp) <= now ||
+    (claims.iat && Number(claims.iat) > now + 60)
+  ) return null;
+  return claims;
 }
 
 /* ---------- helpers ---------- */
