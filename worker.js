@@ -16,6 +16,9 @@
 //   POST /chat/completions  -> streams the reply
 //// Errors are JSON: { error: { message, type, code } } with a real HTTP status.
 
+// Skill Engine 2.0 shares its parser, scanner, and tool catalog with the browser.
+import "./skill-rules.js";
+
 const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a time
 const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -27,6 +30,12 @@ const MODEL_GONE_STATUS = 404; // retired model: move on to the next one, do not
 const HEADERS_TIMEOUT_MS = 20_000; // wait for the first response headers, not for the whole stream
 const ATTEMPTS_PER_MODEL = 2;
 const TOTAL_BUDGET_MS = 45_000; // keep the answer inside the browser's 60s request timeout
+// Skills may only narrow the Worker's read-only tool access. Nothing in a
+// request can widen these grants, and write tools never exist here.
+const GRANTABLE_SKILL_TOOLS = new Set(["web.read", "github.read"]);
+const BASELINE_SKILL_TOOLS = ["web.read", "github.read"];
+const SKILL_MARKER = "<<<SKILL";
+const MAX_SKILLS_PER_REQUEST = 8;
 
 export default {
   async fetch(request, env) {
@@ -143,7 +152,7 @@ export default {
     }
 
     if (request.method === "GET" && (path === "" || path === "/health")) {
-      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
+      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), skillEngine: "2.0.0", message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
@@ -207,6 +216,13 @@ export default {
     }
     if (input.messages.length > MAX_MESSAGES) return fail(400, `Too many messages (max ${MAX_MESSAGES}).`);
 
+    // Uploaded skills are untrusted instructions. Re-check every injected skill
+    // block here so a stale or modified browser cannot smuggle secret access,
+    // authentication overrides, or code execution into the model prompt.
+    const skillAccess = readSkillManifest(input);
+    const skillCheck = guardSkillPrompt(input.messages, skillAccess);
+    if (!skillCheck.ok) return fail(400, skillCheck.message);
+
     const model = String(input.model || env.DEFAULT_MODEL || DEFAULT_MODEL).replace(/^models\//, "");
     if (!MODEL_RE.test(model)) return fail(400, "Invalid model name.");
 
@@ -218,7 +234,7 @@ export default {
         return fail(403, "Connected app tools are restricted to the ULTRON owner.");
       }
       try {
-        const agentReply = await runComposioToolAgent(input, model, env);
+        const agentReply = await runComposioToolAgent(input, model, env, skillAccess);
         return new Response(toStaticOpenAIStream(agentReply.text, agentReply.model), {
           headers: { ...cors.headers, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
         });
@@ -245,8 +261,59 @@ export default {
 };
 
 
+/* ---------- skill manifest and prompt guard ---------- */
+// A skill manifest is metadata only: names plus approved tool ids. It can
+// narrow the read-only tools a request may use, never add capabilities.
+function readSkillManifest(input) {
+  const list = Array.isArray(input.skills) ? input.skills.slice(0, MAX_SKILLS_PER_REQUEST) : null;
+  if (!list) return { present: false, tools: BASELINE_SKILL_TOOLS.slice(), names: [] };
+  const tools = new Set();
+  const names = [];
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object") continue;
+    const name = String(entry.name || "").slice(0, 80);
+    if (name) names.push(name);
+    const requested = Array.isArray(entry.tools) ? entry.tools.slice(0, 4) : [];
+    for (const tool of requested) {
+      if (typeof tool === "string" && GRANTABLE_SKILL_TOOLS.has(tool)) tools.add(tool);
+    }
+  }
+  return { present: true, tools: [...tools], names };
+}
+
+function guardSkillPrompt(messages, manifest) {
+  const declaredSkills = Boolean(manifest && manifest.present && manifest.names.length);
+  let blocks = 0;
+  for (const message of messages) {
+    if (!message || message.role !== "system" || typeof message.content !== "string") continue;
+    const hasMarker = message.content.includes(SKILL_MARKER);
+    if (!hasMarker && !declaredSkills) continue;
+    if (message.content.length > 400_000) return { ok: false, message: "Skill context is too large." };
+
+    if (hasMarker) {
+      blocks += message.content.split(SKILL_MARKER).length - 1;
+      if (blocks > MAX_SKILLS_PER_REQUEST) return { ok: false, message: `Too many skills in one request (max ${MAX_SKILLS_PER_REQUEST}).` };
+    }
+
+    const api = globalThis.ULTRONSkillRules;
+    if (!api || typeof api.scanSkill !== "function") {
+      return { ok: false, message: "Skill validation is unavailable on this Worker. Redeploy worker.js with skill-rules.js." };
+    }
+
+    // Scan everything from the first marker to the end of the system message.
+    // A skill that injects a fake closing marker cannot hide later text this way.
+    const from = hasMarker ? message.content.indexOf(SKILL_MARKER) : 0;
+    const scan = api.scanSkill(message.content.slice(from));
+    if (scan.blocked) {
+      const first = (scan.findings || []).find(finding => finding.severity === "block");
+      return { ok: false, message: "A skill was blocked: " + (first ? first.message : "it failed the security check.") };
+    }
+  }
+  return { ok: true, blocks };
+}
+
 /* ---------- skill tool execution ---------- */
-async function runComposioToolAgent(input, requestedModel, env) {
+async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
   const sessionId = String(input.composioSessionId || "");
   const hasSession = Boolean(sessionId);
   if (hasSession && !/^trs_[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid Composio session. Reconnect GitHub in Settings.");
@@ -271,20 +338,31 @@ async function runComposioToolAgent(input, requestedModel, env) {
       if (!cursor) break;
     }
   }
-  // Only GitHub read actions are exposed. Writes stay disabled until an approval UI exists.
-  const readOnly = available.filter(tool => tool && tool.toolkit?.slug === "github" &&
+  // Only GitHub read actions are exposed, and only when the active skills grant
+  // github.read. Writes stay disabled until an approval UI exists.
+  const allowedTools = skillAccess && skillAccess.present
+    ? new Set(skillAccess.tools)
+    : new Set(BASELINE_SKILL_TOOLS);
+  const readOnly = allowedTools.has("github.read") ? available.filter(tool => tool && tool.toolkit?.slug === "github" &&
     /(?:^|_)(?:GET|LIST|SEARCH|FETCH|READ|FIND|VIEW|CHECK|LOOKUP|DOWNLOAD|DESCRIBE|INSPECT)(?:_|$)/i.test(tool.slug || "") && !tool.is_deprecated
-  ).slice(0, 80);
+  ).slice(0, 80) : [];
   const declarations = readOnly.map(tool => ({
     name: tool.slug,
     description: String(tool.description || tool.human_description || tool.name || tool.slug).slice(0, 900),
     parameters: composioInputSchema(tool.input_parameters || {}),
   }));
-  declarations.push({
-    name: "OPEN_PUBLIC_WEBPAGE",
-    description: "Read text from a public HTTPS webpage. Does not run JavaScript, click, sign in, or interact with the page.",
-    parameters: { type: "OBJECT", properties: { url: { type: "STRING", description: "Public HTTPS URL" } }, required: ["url"] },
-  });
+  if (allowedTools.has("web.read")) {
+    declarations.push({
+      name: "OPEN_PUBLIC_WEBPAGE",
+      description: "Read text from a public HTTPS webpage. Does not run JavaScript, click, sign in, or interact with the page.",
+      parameters: { type: "OBJECT", properties: { url: { type: "STRING", description: "Public HTTPS URL" } }, required: ["url"] },
+    });
+  }
+  if (!declarations.length) {
+    throw new Error(hasSession
+      ? "The active skills do not permit any available tools."
+      : "No tools are available. Connect GitHub in Settings or grant a skill web.read.");
+  }
   const body = buildGeminiBody(input);
   if (!body.contents.length) throw new Error("No user or assistant messages were provided.");
   body.tools = [{ functionDeclarations: declarations }];
@@ -304,8 +382,11 @@ async function runComposioToolAgent(input, requestedModel, env) {
       const args = call.args && typeof call.args === "object" ? call.args : {};
       let result;
       try {
-        if (name === "OPEN_PUBLIC_WEBPAGE") result = await readPublicPageForAgent(String(args.url || ""));
-        else {
+        if (name === "OPEN_PUBLIC_WEBPAGE") {
+          if (!allowedTools.has("web.read")) throw new Error("web.read is not granted to the active skills.");
+          result = await readPublicPageForAgent(String(args.url || ""));
+        } else {
+          if (!allowedTools.has("github.read")) throw new Error("github.read is not granted to the active skills.");
           if (!readOnly.some(tool => tool.slug === name)) throw new Error("Tool not enabled. Only connected GitHub read actions are currently allowed.");
           result = await composioCall(`/tool_router/session/${encodeURIComponent(sessionId)}/execute`, { method: "POST", body: JSON.stringify({ tool_slug: name, arguments: args }) });
         }
