@@ -1699,6 +1699,10 @@ let slashSelection=0;
 function getSlashItems(query){const q=query.replace(/^\//,'').toLowerCase();const items=slashCommands.filter(c=>c.name.slice(1).startsWith(q));(state.customSkills||[]).forEach(skill=>{const name=skillCommandName(skill.name);if(name.startsWith(q))items.push({name:'/'+name,description:'Run skill · '+skill.name,skill:true,disabled:skill.enabled===false});});return items;}
 function renderSlashMenu(){const input=document.getElementById('promptInput'),menu=document.getElementById('slashCommandMenu');if(!input||!menu)return;const value=input.value.trim();if(!value.startsWith('/')||value.includes(' ')&&value.split(/\s+/)[0].length>1){menu.hidden=true;return;}const items=getSlashItems(value);if(!items.length){menu.hidden=true;return;}slashSelection=Math.min(slashSelection,items.length-1);menu.innerHTML='<div class="slash-command-heading">Commands and skills</div>';items.forEach((item,index)=>{const b=document.createElement('button');b.type='button';b.className='slash-command-item'+(index===slashSelection?' active':'');b.setAttribute('role','option');const n=document.createElement('span');n.className='slash-command-name';n.textContent=item.name;const d=document.createElement('span');d.className='slash-command-desc';d.textContent=item.description+(item.disabled?' · disabled':'');b.append(n,d);b.addEventListener('pointerdown',e=>e.preventDefault());b.addEventListener('click',()=>{input.value=item.name+(item.skill?' ':'');menu.hidden=true;input.focus();updateComposerAction();});menu.appendChild(b);});menu.hidden=false;}
 async function handleSend(event) {
+if (activeRequest) {
+  if (event && event.type === 'click') activeRequest.abort();
+  return;
+}
 if (!getGoogleCredential()) { showGoogleLogin('Sign in with Google before sending a message.'); return; }
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
@@ -1732,10 +1736,6 @@ if (prompt.startsWith('/')) {
     input.value='';updateComposerAction();return;
   } else if (command === 'export') { input.value='';updateComposerAction();document.getElementById('exportDataBtn').click();return; }
   else { showLocalCommandReply('Unknown command: /'+command+'. Type / or use /help to see available commands.');input.value='';updateComposerAction();return; }
-}
-if (activeRequest) {
-if (event && event.type === 'click') activeRequest.abort(); // the button reads Stop while a request runs
-return;
 }
 let thread = state.threads.find(t => t.id === state.activeThreadId);
 if (!thread) {
