@@ -750,6 +750,25 @@ body {
 .account-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border-hairline);border-radius:12px;margin-bottom:14px;font-size:.82rem}
 .account-row button{border:0;background:transparent;color:var(--accent-terracotta);font-weight:650}
 </style>
+
+<style id="ultron-violet-palette">
+:root{--bg-canvas:#F4F1FA;--bg-surface:#EAE5F4;--bg-elevated:#DCD4EC;--bg-input:#FCFAFF;--text-primary:#211936;--text-secondary:#51476A;--text-muted:#766C8D;--border-hairline:#CEC4E0;--accent-terracotta:#5A3B8C;--accent-hover:#472B76;--user-bubble:#E5DDF2}
+[data-theme="dark"]{--bg-canvas:#0E0B1D;--bg-surface:#17122B;--bg-elevated:#2A1E4D;--bg-input:#17122B;--text-primary:#F5F1FC;--text-secondary:#C9C2E3;--text-muted:#A49ABD;--border-hairline:#453866;--accent-terracotta:#8B7CC7;--accent-hover:#A99ADB;--user-bubble:#2A1E4D}
+body{background-color:var(--bg-canvas)}
+[data-theme="dark"] body{background-image:radial-gradient(ellipse at 50% -18%,rgba(90,59,140,.22),transparent 58%),radial-gradient(ellipse at 100% 100%,rgba(139,124,199,.07),transparent 42%)}
+[data-theme="dark"] .sidebar{background:linear-gradient(180deg,#17122B 0%,#120F23 100%)}
+.new-chat-btn,.send-btn{background:var(--accent-terracotta);color:#fff;box-shadow:0 5px 18px color-mix(in srgb,var(--accent-terracotta) 25%,transparent)}
+.new-chat-btn:hover,.send-btn:hover{background:var(--accent-hover)}
+[data-theme="dark"] .send-btn{color:#0E0B1D}
+.badge-foss{background:color-mix(in srgb,var(--accent-terracotta) 18%,transparent);color:var(--accent-terracotta);border-color:color-mix(in srgb,var(--accent-terracotta) 42%,transparent)}
+.hero-spark{background:color-mix(in srgb,var(--accent-terracotta) 18%,var(--bg-surface));color:var(--accent-terracotta)}
+.starter-card:hover,.artifact-pill:hover,.footer-btn:hover{border-color:var(--accent-terracotta)}
+.thread-item.active{background:color-mix(in srgb,var(--accent-terracotta) 16%,var(--bg-surface));border-color:color-mix(in srgb,var(--accent-terracotta) 36%,var(--border-hairline))}
+.composer-box:focus-within{border-color:var(--accent-terracotta);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-terracotta) 18%,transparent),0 12px 34px rgba(14,11,29,.16)}
+.msg-assistant a,.star-thread-btn:hover{color:var(--accent-terracotta)}
+::selection{background:color-mix(in srgb,var(--accent-terracotta) 35%,transparent)}
+</style>
+
 </head>
 <body>
 <div class="app-shell">
