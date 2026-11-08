@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>OpenClaude — Free & Open Source AI Workspace</title>
+<title>ULTRON — AI Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Oxanium:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
 --bg-canvas: #faf9f5;
@@ -645,12 +645,23 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <link rel="stylesheet" href="./styles.css?v=20261108-chatbox">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<style>
+/* ULTRON brand system */
+.brand-title{display:flex;align-items:center;gap:10px;min-width:0;color:var(--text-primary)!important}
+.drawer-header .brand-title{font-family:'Oxanium',sans-serif!important;font-size:1.16rem!important;font-weight:700!important;letter-spacing:.15em!important;line-height:1!important;color:var(--text-primary)!important;text-transform:uppercase}
+.brand-mark{width:30px;height:26px;flex:0 0 30px;display:block;color:var(--text-primary)}
+.brand-wordmark{display:inline-block;color:var(--text-primary);font-family:'Oxanium',sans-serif;font-weight:700;letter-spacing:.15em}
+@media(max-width:860px){.sidebar{background:var(--bg-surface)!important;color:var(--text-primary)!important;border-right:1px solid var(--border-hairline)!important}.drawer-header{background:var(--bg-surface)}.drawer-header .brand-title{color:var(--text-primary)!important}.drawer-header .brand-mark,.drawer-header .brand-wordmark{color:var(--text-primary)!important}.drawer-search-btn,.drawer-close-btn{background:var(--bg-elevated);color:var(--text-primary)}.drawer-search-input{background:var(--bg-canvas);border-color:var(--border-hairline);color:var(--text-primary)}.drawer-nav-item,.pinned-item{color:var(--text-primary)}.drawer-section-label{color:var(--text-muted)}.chats-section .thread-item{color:var(--text-secondary)}.chats-section .thread-item.active{background:var(--bg-elevated);color:var(--text-primary)}.drawer-bottom-bar{background:var(--bg-surface);border-top-color:var(--border-hairline)}.drawer-avatar-btn,.drawer-theme-btn{background:var(--bg-elevated);border-color:var(--border-hairline);color:var(--text-primary)}}
+</style>
 </head>
 <body>
 <div class="app-shell">
 <aside class="sidebar" id="sidebar" aria-label="Main navigation">
   <div class="drawer-header">
-    <div class="brand-title"><span>OpenClaude</span></div>
+    <div class="brand-title" aria-label="ULTRON">
+<svg class="brand-mark" viewBox="280 350 520 315" role="img" aria-label="ULTRON symbol"><path fill="currentColor" fill-rule="evenodd" d="M299 655 476 656 537 577 597 656 780 656 610 444 539 362Z M517 553 504 570 458 619 369 618 468 502Z M563 552 608 499 710 621 618 622Z M536 427 581 472 539 521 499 470Z"/></svg>
+<span class="brand-wordmark">ULTRON</span>
+</div>
     <button class="drawer-search-btn" id="sidebarSearchBtn" aria-label="Search chats" title="Search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg>
     </button>
@@ -694,7 +705,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 </div>
 <div class="composer-wrap">
 <div class="composer-box">
-<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Ask OpenClaud" aria-label="Message"></textarea>
+<textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="send" placeholder="Message ULTRON" aria-label="Message"></textarea>
 <div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div>
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files">＋</button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
 <div id="attachmentPreview" class="attachment-preview"></div>
@@ -726,7 +737,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <div class="modal-card">
 <h3>Cloudflare Worker Setup</h3>
 <p style="font-size:0.83rem; color:var(--text-secondary);">
-OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudflare Worker Secrets. Never paste it into this website.
+ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudflare Worker Secrets. Never paste it into this website.
 </p>
 <div class="field-group">
 <label>Cloudflare Worker URL</label>
@@ -744,7 +755,7 @@ OpenClaude sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Clou
 </div>
 <div class="field-group">
 <label>Project System Prompt</label>
-<textarea id="sysPromptInput" rows="3">You are OpenClaude, a helpful, concise, open-source AI assistant.</textarea>
+<textarea id="sysPromptInput" rows="3">You are ULTRON, a helpful, concise AI assistant.</textarea>
 </div>
 <div class="field-group" style="border-top:1px solid var(--border-hairline); padding-top:14px;">
 <label>Custom skills</label><p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Upload a .md or .txt skill. Type / in chat to find it, then choose /skill-name to run it. Enabled skills can also be invoked directly.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="footer-btn" type="button" id="uploadSkillBtn">＋ Upload skill</button><input id="skillFileInput" type="file" accept=".md,.txt,text/markdown,text/plain" hidden></div><div id="skillList" class="skill-list"></div>
@@ -781,7 +792,7 @@ customSkills: [],
 activeArtifact: {
 title: 'Interactive Pomodoro Timer',
 code: `<div style="font-family:sans-serif;text-align:center;padding:32px;background:#faf9f5;color:#141413;height:100vh;">
-<h2 style="color:#c96442;">OpenClaude Artifact Sandbox</h2>
+<h2 style="color:#c96442;">ULTRON Artifact Sandbox</h2>
 <p style="font-size:3rem;margin:20px 0;" id="t">25:00</p>
 <button onclick="alert('Artifact interactivity verified!')" style="padding:10px 20px;background:#c96442;color:#fff;border:none;border-radius:8px;cursor:pointer;">Start Focus Session</button>
 </div>`
@@ -789,12 +800,12 @@ code: `<div style="font-family:sans-serif;text-align:center;padding:32px;backgro
 threads: [
 {
 id: 'thread-1',
-title: 'Welcome to OpenClaude',
+title: 'Welcome to ULTRON',
 starred: true,
 messages: [
 {
 role: 'assistant',
-content: 'Welcome to **OpenClaude**. Your messages go through your private Cloudflare Worker, so the Gemini API key never enters this browser.\n\n- **Cloudflare Worker:** Your API key stays in Cloudflare Secrets.\n- **Offline Sandbox:** Try the interface without an AI connection.\n- **Live Artifacts:** Open interactive HTML/JS components in the sandbox.',
+content: 'Welcome to **ULTRON**. Your messages go through your private Cloudflare Worker, so the Gemini API key never enters this browser.\n\n- **Cloudflare Worker:** Your API key stays in Cloudflare Secrets.\n- **Offline Sandbox:** Try the interface without an AI connection.\n- **Live Artifacts:** Open interactive HTML/JS components in the sandbox.',
 hasArtifact: true
 }
 ]
@@ -1361,6 +1372,9 @@ return structuredClone(defaultState);
 }
 // Replace the original state only when the page first loads.
 state = readStoredState();
+if (state.systemPrompt === 'You are OpenClaude, a helpful, concise, open-source AI assistant.') {
+  state.systemPrompt = 'You are ULTRON, a helpful, concise AI assistant.';
+}
 const requestedChat=(location.hash.match(/(?:^#|&)chat=([^&]+)/)||[])[1]; if(requestedChat){const target=state.threads.find(t=>t.id===decodeURIComponent(requestedChat));if(target)state.activeThreadId=target.id;}
 
 function normalizeWorkerUrl(value) {
@@ -1628,7 +1642,7 @@ if (prompt.startsWith('/')) {
     invokedSkill = skill;
     prompt = argText || 'Use the selected skill to help me. Follow its instructions for this task.';
   } else if (['help','?'].includes(command)) {
-    showLocalCommandReply('**OpenClaude commands**\n\n- /new Start a new chat\n- /clear Clear this chat\n- /model Show or change the model\n- /settings Open settings\n- /skills Manage Markdown skills\n- /export Export your workspace\n- /skill-name Run an uploaded skill\n\nType / to browse commands and skills.');
+    showLocalCommandReply('**ULTRON commands**\n\n- /new Start a new chat\n- /clear Clear this chat\n- /model Show or change the model\n- /settings Open settings\n- /skills Manage Markdown skills\n- /export Export your workspace\n- /skill-name Run an uploaded skill\n\nType / to browse commands and skills.');
     input.value=''; updateComposerAction(); return;
   } else if (command === 'new') { input.value=''; updateComposerAction(); createNewThread(); return; }
   else if (command === 'clear') {
@@ -1688,14 +1702,14 @@ if (browserSkill && urlMatch) {
 statusEl.textContent = 'Opening website for your skill…';
 try {
 const page = await inspectPublicWebsite(urlMatch[0].replace(/[),.;]+$/, ''), activeRequest.signal);
-browserContext = '\n\nBROWSER PAGE CONTEXT (fetched by OpenClaude):\nURL: ' + page.url + '\nTITLE: ' + page.title + '\nPAGE TEXT:\n' + page.content + '\n\nSANITIZED HTML STRUCTURE:\n' + page.html + '\n\nUse the retrieved page text and HTML structure as source material. Do not claim you cannot open websites. OpenClaude can read public page text, but it cannot capture screenshots or control a live Chrome session.';
+browserContext = '\n\nBROWSER PAGE CONTEXT (fetched by ULTRON):\nURL: ' + page.url + '\nTITLE: ' + page.title + '\nPAGE TEXT:\n' + page.content + '\n\nSANITIZED HTML STRUCTURE:\n' + page.html + '\n\nUse the retrieved page text and HTML structure as source material. Do not claim you cannot open websites. ULTRON can read public page text, but it cannot capture screenshots or control a live Chrome session.';
 } catch (browseError) {
-browserContext = '\n\nBROWSER INSPECTION NOTE: OpenClaude could not retrieve the URL: ' + browseError.message + '. Explain this specific limitation and continue with any information the user provided.';
+browserContext = '\n\nBROWSER INSPECTION NOTE: ULTRON could not retrieve the URL: ' + browseError.message + '. Explain this specific limitation and continue with any information the user provided.';
 }
 }
 statusEl.textContent = 'Connecting to Cloudflare Worker…';
 const skillInstructions = activeSkills.map(skill => 'CUSTOM SKILL: ' + skill.name + '\n' + skill.content);
-skillInstructions.push('SKILL EXECUTION RULE: Treat enabled custom skills as task instructions and perform every step supported by the tools and context provided by OpenClaude. Never tell the user to move the skill into Claude Code, Cursor, or another agent. If a required capability is unavailable, state only that exact missing capability and continue with the supported parts.');
+skillInstructions.push('SKILL EXECUTION RULE: Treat enabled custom skills as task instructions and perform every step supported by the tools and context provided by ULTRON. Never tell the user to move the skill into Claude Code, Cursor, or another agent. If a required capability is unavailable, state only that exact missing capability and continue with the supported parts.');
 replyText = await requestWorkerReply(endpoint, [
 { role: 'system', content: [state.systemPrompt, invokedSkill ? 'ACTIVE SKILL INVOKED BY USER: ' + invokedSkill.name : '', ...skillInstructions].filter(Boolean).join('\n\n') },
 ...thread.messages.filter(m => !m.isError).map((m, index, arr) => {
@@ -1739,7 +1753,7 @@ if (prompt.toLowerCase().includes('artifact') || prompt.toLowerCase().includes('
 state.activeArtifact = {
 title: 'Live Calculator Artifact',
 code: `<div style="font-family:sans-serif;padding:24px;background:#141413;color:#faf9f5;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-<h3 style="color:#d97757;margin-bottom:12px;">OpenClaude Live Calculator</h3>
+<h3 style="color:#d97757;margin-bottom:12px;">ULTRON Live Calculator</h3>
 <input id="calc" placeholder="e.g. 24 * 7" style="padding:10px;border-radius:8px;border:1px solid #30302e;background:#222220;color:#fff;font-size:1.1rem;" />
 <button onclick="document.getElementById('out').textContent = 'Result: ' + Function('return (' + document.getElementById('calc').value + ')')()" style="margin-top:10px;padding:8px 18px;background:#c96442;color:#fff;border:none;border-radius:8px;cursor:pointer;">Compute</button>
 <p id="out" style="margin-top:16px;font-size:1.2rem;"></p>
