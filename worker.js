@@ -125,7 +125,7 @@ export default {
           if (toolkit !== "github") return fail(400, "This first connector build currently supports GitHub only.");
           const linked = await callComposio(`/tool_router/session/${encodeURIComponent(sessionId)}/link`, {
             method: "POST",
-            body: JSON.stringify({ toolkit, callback_url: "https://sharonmathew023-blip.github.io/claude-clone/" }),
+            body: JSON.stringify({ toolkit, callback_url: "https://sharonmathew023-blip.github.io/ultron/" }),
           });
           return reply({ ok: true, redirectUrl: linked.redirect_url, connectedAccountId: linked.connected_account_id });
         }
