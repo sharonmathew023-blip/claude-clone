@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080808">
+<title>Privacy | ULTRON</title>
+<style>
+:root{color-scheme:dark;--bg:#080808;--panel:#111;--text:#f5f5f5;--muted:#aaa;--line:#292929;--accent:#d4ff32}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:760px;margin:0 auto;padding:44px 22px 72px}a{color:var(--accent)}.brand{font-weight:800;letter-spacing:.16em;font-size:1.05rem}.back{display:inline-block;margin:24px 0;color:var(--muted)}h1{font-size:2.2rem;line-height:1.15;margin:12px 0}h2{font-size:1.15rem;margin:30px 0 8px}p,li{color:#d0d0d0}.note{padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px}.muted{color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body><main class="wrap">
+<div class="brand">ULTRON</div>
+<a class="back" href="./">← Back to ULTRON</a>
+<h1>Privacy notice</h1>
+<p class="muted">Last updated: 8 November 2026</p>
+<div class="note"><strong>In short:</strong> Your chat history is saved in this browser, not in a ULTRON cloud chat database. Your prompts and attachments are sent to Google Gemini to generate replies. Other visitors cannot open your browser's chat history.</div>
+
+<h2>1. Google sign-in</h2>
+<p>You must sign in with Google before sending messages. ULTRON verifies your Google sign-in token with Google. The token is held in the current browser tab's memory and is not intentionally saved in local storage. ULTRON uses the Google account's stable subject identifier to apply per-account rate limits. ULTRON does not need access to your Google Drive, Gmail, contacts, or other Google services.</p>
+
+<h2>2. Your chats and attachments</h2>
+<p>Conversation history and app settings are stored locally in your browser using IndexedDB and browser storage. ULTRON does not currently provide cross-device chat sync or a server-side chat-history feature. Anyone who can use your unlocked browser profile may be able to access its locally saved chats. Clear the site's browser data to remove locally stored conversations.</p>
+<p>When you send a message, the message content and any supported attachments are transmitted through the ULTRON Cloudflare Worker to Google's Gemini API to generate a response. Do not submit passwords, payment details, government ID numbers, or other highly sensitive information.</p>
+
+<h2>3. Rate limiting and technical data</h2>
+<p>ULTRON applies approximate per-account and per-IP request limits to reduce abuse and protect the service's shared AI quota. Cloudflare's rate-limiting system uses your Google account identifier and network IP address as rate-limit keys. These counters are used for abuse prevention, not to show your identity to other visitors.</p>
+
+<h2>4. Service providers</h2>
+<ul>
+<li><strong>Google:</strong> Google Identity Services handles sign-in, and the Gemini API processes prompts and attachments to generate answers. Google's handling of this data is governed by its applicable terms and privacy information.</li>
+<li><strong>Cloudflare:</strong> Hosts and runs the ULTRON API Worker and rate-limiting infrastructure. Cloudflare may process technical request data under its own policies.</li>
+<li><strong>GitHub Pages:</strong> Hosts the public ULTRON website.</li>
+</ul>
+
+<h2>5. Sharing</h2>
+<p>ULTRON does not publish your chats or make them visible to other visitors. Your chat history stays in your browser unless you choose to share or export it. Your prompts are still sent to the service providers listed above so the app can work.</p>
+
+<h2>6. Security and limits</h2>
+<p>The Gemini API key is kept in Cloudflare Worker secrets and is not included in the website code. No internet service can promise perfect security. Sign out on shared devices, keep your browser updated, and avoid sending information you would not want processed by the providers above.</p>
+
+<h2>7. Changes and contact</h2>
+<p>This notice may change as ULTRON gains features. For privacy questions, contact the site owner through the contact details published on the <a href="https://sharonmathew023-blip.github.io/SHARON2004/">owner's portfolio</a>.</p>
+</main></body></html>
