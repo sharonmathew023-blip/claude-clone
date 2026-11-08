@@ -108,7 +108,10 @@ export default {
           if (toolkit !== "github") return fail(400, "This connector setup currently supports GitHub only.");
           const connected = await mcp.callTool("COMPOSIO_MANAGE_CONNECTIONS", { toolkits: [toolkit], reinitiate_all: false });
           const redirectUrl = findComposioField(connected, ["redirect_url", "redirectUrl"]);
-          return reply({ ok: true, redirectUrl: typeof redirectUrl === "string" ? redirectUrl : null, data: connected });
+          const connectedAccountId = findComposioField(connected, ["connected_account_id", "connectedAccountId"]);
+          const connectionState = findComposioField(connected, ["status", "state"]);
+          const isConnected = Boolean(connectedAccountId) || ["active", "connected"].includes(String(connectionState || "").toLowerCase());
+          return reply({ ok: true, connected: isConnected, redirectUrl: typeof redirectUrl === "string" ? redirectUrl : null, connectedAccountId, data: connected });
         }
 
         if (request.method === "GET" && path === "/composio/status") {
