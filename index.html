@@ -645,6 +645,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 <link rel="stylesheet" href="./styles.css?v=20261108-chatbox">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 [data-theme="dark"] .drawer-header .brand-title,[data-theme="dark"] .drawer-header .brand-mark,[data-theme="dark"] .drawer-header .brand-wordmark{color:#fff!important}[data-theme="light"] .drawer-header .brand-title,[data-theme="light"] .drawer-header .brand-mark,[data-theme="light"] .drawer-header .brand-wordmark{color:#000!important}
 /* ULTRON brand system */
@@ -734,8 +735,20 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 </div>
 </aside>
 </div>
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-brand"><svg viewBox="280 350 520 315" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M299 655 476 656 537 577 597 656 780 656 610 444 539 362Z M517 553 504 570 458 619 369 618 468 502Z M563 552 608 499 710 621 618 622Z M536 427 581 472 539 521 499 470Z"/></svg> ULTRON</div>
+    <h1>Your AI space starts here.</h1>
+    <p>Sign in with Google to start chatting. Your conversations stay in this browser and are not visible to other visitors.</p>
+    <div class="google-signin-slot" id="googleSignInButton"></div>
+    <p class="auth-privacy">By continuing, you agree to the <a href="./privacy.html" target="_blank" rel="noopener">Privacy Notice</a>.</p>
+    <p class="auth-error" id="googleSignInError" role="status"></p>
+  </div>
+</div>
 <div class="modal-backdrop" id="settingsModal">
 <div class="modal-card">
+<h3>ULTRON account</h3>
+<div class="account-row"><span id="googleAccountLabel">Not signed in</span><button id="googleSignOutBtn" type="button">Sign out</button></div>
 <h3>Cloudflare Worker Setup</h3>
 <p style="font-size:0.83rem; color:var(--text-secondary);">
 ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudflare Worker Secrets. Never paste it into this website.
@@ -745,9 +758,9 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 <input type="text" id="workerUrlInput" value="https://openclaude-api.sharonmathew023.workers.dev/chat/completions" />
 </div>
 <div class="field-group">
-<label>Access token (required)</label>
+<label>Worker access token (private tools only)</label>
 <input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Only if your Worker has an ACCESS_TOKEN secret" />
-<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Required to use your private Worker. The token stays in this browser and is left out of exported files. Never share it.</p>
+<p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Required to use your private Worker. This is only for private browser/connector tools. Google sign-in is used for chat. Never share this token.</p>
 </div>
 <div class="field-group">
 <label>Gemini model</label>
@@ -777,6 +790,51 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 </div>
 </div>
 <script>
+const GOOGLE_CLIENT_ID = '299929778437-b5t5kpo1b83nmlp44aj4oerhbkl876gj.apps.googleusercontent.com';
+let googleCredential = null;
+let googleAccountEmail = '';
+function decodeGooglePayload(token) {
+  try {
+    const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(part.padEnd(Math.ceil(part.length/4)*4,'=')));
+  } catch { return null; }
+}
+function getGoogleCredential() {
+  if (!googleCredential) return null;
+  const payload = decodeGooglePayload(googleCredential);
+  if (!payload || !payload.exp || payload.exp <= Math.floor(Date.now()/1000)) {
+    googleCredential = null;
+    googleAccountEmail = '';
+    return null;
+  }
+  return googleCredential;
+}
+function showGoogleLogin(message='') {
+  document.getElementById('authGate').style.display='flex';
+  document.getElementById('googleSignInError').textContent=message;
+}
+function onGoogleCredential(response) {
+  const payload = decodeGooglePayload(response.credential);
+  if (!payload || payload.aud !== GOOGLE_CLIENT_ID || !payload.exp || payload.exp <= Math.floor(Date.now()/1000)) {
+    showGoogleLogin('Google could not verify this sign-in. Please try again.');
+    return;
+  }
+  googleCredential = response.credential;
+  googleAccountEmail = payload.email || 'Google account';
+  document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('googleSignInError').textContent='';
+}
+function initializeGoogleSignIn(attempt=0) {
+  if (window.google?.accounts?.id) {
+    window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:false,ux_mode:'popup'});
+    window.google.accounts.id.renderButton(document.getElementById('googleSignInButton'),{type:'standard',theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:260,logo_alignment:'left'});
+    if (!getGoogleCredential()) showGoogleLogin();
+    return;
+  }
+  if (attempt < 40) setTimeout(()=>initializeGoogleSignIn(attempt+1),250);
+  else showGoogleLogin('Google sign-in did not load. Check your connection and refresh.');
+}
 const STORAGE_KEY = 'openclaude_worker_v3';
 try { localStorage.removeItem('openclaude_direct_v2'); } catch (_) {}
 const defaultState = {
@@ -1305,7 +1363,21 @@ function extractArtifactFromReply(markdown) {
     code = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>' + code + '</body></html>';
   }
   if (css && !new RegExp('<style[\\s>]', 'i').test(code)) {
-    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n.slash-command-menu{position:absolute;left:14px;right:14px;bottom:calc(100% + 10px);z-index:80;max-height:52vh;overflow:auto;padding:7px;background:var(--bg-surface);border:1px solid var(--border-hairline);border-radius:14px;box-shadow:0 16px 42px rgba(0,0,0,.28)}.slash-command-menu[hidden]{display:none!important}.slash-command-heading{padding:7px 9px 5px;color:var(--text-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}.slash-command-item{display:flex;width:100%;align-items:center;gap:10px;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-primary);text-align:left;cursor:pointer}.slash-command-item.active,.slash-command-item:hover{background:var(--bg-elevated)}.slash-command-name{font-family:var(--font-mono);font-size:.82rem;min-width:112px;color:var(--accent-terracotta)}.slash-command-desc{font-size:.76rem;color:var(--text-secondary)}.composer-box{position:relative}</style>';
+    const style = '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n.slash-command-menu{position:absolute;left:14px;right:14px;bottom:calc(100% + 10px);z-index:80;max-height:52vh;overflow:auto;padding:7px;background:var(--bg-surface);border:1px solid var(--border-hairline);border-radius:14px;box-shadow:0 16px 42px rgba(0,0,0,.28)}.slash-command-menu[hidden]{display:none!important}.slash-command-heading{padding:7px 9px 5px;color:var(--text-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}.slash-command-item{display:flex;width:100%;align-items:center;gap:10px;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:var(--text-primary);text-align:left;cursor:pointer}.slash-command-item.active,.slash-command-item:hover{background:var(--bg-elevated)}.slash-command-name{font-family:var(--font-mono);font-size:.82rem;min-width:112px;color:var(--accent-terracotta)}.slash-command-desc{font-size:.76rem;color:var(--text-secondary)}.composer-box{position:relative}
+/* Google sign-in gate */
+.auth-gate{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(0,0,0,.82);backdrop-filter:blur(16px)}
+.auth-card{width:min(100%,410px);padding:30px 25px;border:1px solid var(--border-hairline);border-radius:24px;background:var(--bg-surface);color:var(--text-primary);box-shadow:0 24px 90px rgba(0,0,0,.45);text-align:center}
+.auth-brand{display:flex;align-items:center;justify-content:center;gap:10px;font-family:'Oxanium',sans-serif;font-size:1.2rem;font-weight:800;letter-spacing:.16em;margin-bottom:28px}
+.auth-brand svg{width:32px;height:27px}
+.auth-card h1{font-size:1.55rem;line-height:1.2;margin:0 0 10px}
+.auth-card p{font-size:.9rem;line-height:1.55;color:var(--text-secondary);margin:0 0 22px}
+.google-signin-slot{display:flex;justify-content:center;min-height:44px;margin:0 auto 18px}
+.auth-privacy{font-size:.78rem!important;margin:0!important}
+.auth-privacy a{color:var(--accent-terracotta)}
+.auth-error{min-height:20px;color:#e07878!important;font-size:.8rem!important;margin:12px 0 0!important}
+.account-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border-hairline);border-radius:12px;margin-bottom:14px;font-size:.82rem}
+.account-row button{border:0;background:transparent;color:var(--accent-terracotta);font-weight:650}
+</style>';
     const headEnd = code.toLowerCase().indexOf('</head>');
     code = headEnd >= 0 ? code.slice(0, headEnd) + style + code.slice(headEnd) : style + code;
   }
@@ -1534,7 +1606,8 @@ status.textContent = serialized.includes('active') || serialized.includes('conne
 }
 function workerHeaders() {
 const headers = { 'Content-Type': 'application/json' };
-if (state.accessToken) headers.Authorization = 'Bearer ' + state.accessToken;
+const credential = getGoogleCredential();
+if (credential) headers.Authorization = 'Bearer ' + credential;
 return headers;
 }
 async function requestOnce(url, payload, userSignal, onChunk, timeoutMs = 60000) {
@@ -1626,6 +1699,7 @@ let slashSelection=0;
 function getSlashItems(query){const q=query.replace(/^\//,'').toLowerCase();const items=slashCommands.filter(c=>c.name.slice(1).startsWith(q));(state.customSkills||[]).forEach(skill=>{const name=skillCommandName(skill.name);if(name.startsWith(q))items.push({name:'/'+name,description:'Run skill · '+skill.name,skill:true,disabled:skill.enabled===false});});return items;}
 function renderSlashMenu(){const input=document.getElementById('promptInput'),menu=document.getElementById('slashCommandMenu');if(!input||!menu)return;const value=input.value.trim();if(!value.startsWith('/')||value.includes(' ')&&value.split(/\s+/)[0].length>1){menu.hidden=true;return;}const items=getSlashItems(value);if(!items.length){menu.hidden=true;return;}slashSelection=Math.min(slashSelection,items.length-1);menu.innerHTML='<div class="slash-command-heading">Commands and skills</div>';items.forEach((item,index)=>{const b=document.createElement('button');b.type='button';b.className='slash-command-item'+(index===slashSelection?' active':'');b.setAttribute('role','option');const n=document.createElement('span');n.className='slash-command-name';n.textContent=item.name;const d=document.createElement('span');d.className='slash-command-desc';d.textContent=item.description+(item.disabled?' · disabled':'');b.append(n,d);b.addEventListener('pointerdown',e=>e.preventDefault());b.addEventListener('click',()=>{input.value=item.name+(item.skill?' ':'');menu.hidden=true;input.focus();updateComposerAction();});menu.appendChild(b);});menu.hidden=false;}
 async function handleSend(event) {
+if (!getGoogleCredential()) { showGoogleLogin('Sign in with Google before sending a message.'); return; }
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
 let prompt = input.value.trim();
@@ -1994,6 +2068,12 @@ saveState();renderSkillList();event.target.value='';
 });
 document.getElementById('connectGithubBtn').addEventListener('click', connectGithub);
 document.getElementById('checkConnectorsBtn').addEventListener('click', checkConnectorStatus);
+document.getElementById('googleSignOutBtn').addEventListener('click', () => {
+  googleCredential = null;
+  googleAccountEmail = '';
+  document.getElementById('googleAccountLabel').textContent = 'Not signed in';
+  showGoogleLogin('You have signed out.');
+});
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
 state.workerUrl = document.getElementById('workerUrlInput').value.trim();
 state.model = document.getElementById('modelInput').value.trim() || 'gemini-3.5-flash';
@@ -2013,6 +2093,7 @@ a.click();
 document.getElementById('providerBadge').textContent = 'Worker';
 document.getElementById('engineStatus').textContent = 'Engine: Cloudflare Worker Ready';
 applyTheme();
+initializeGoogleSignIn();
 function syncMobileComposerButton() {
   const legacySend = document.getElementById('sendBtn');
   if (!legacySend) return;
