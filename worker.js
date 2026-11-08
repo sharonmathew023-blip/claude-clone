@@ -715,7 +715,7 @@ function corsFor(request, env) {
   const list = configured.length ? configured : ["https://sharonmathew023-blip.github.io"];
   const headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-ULTRON-Admin-Token",
     "Access-Control-Expose-Headers": "Retry-After",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
