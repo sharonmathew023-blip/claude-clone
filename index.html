@@ -608,7 +608,7 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
 .drawer-chat-btn{height:43px;min-width:106px;padding:0 17px;display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:999px;background:#ed684b;color:#fff;font:650 14px -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif}
 .drawer-chat-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .drawer-avatar-btn{width:42px;height:42px;border:0;border-radius:50%;background:#242424;color:#fff;font:650 14px -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif}
-.drawer-theme-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.drawer-footer-actions{display:flex;align-items:center;gap:10px}.drawer-theme-btn{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #383838;border-radius:50%;background:#242424;color:#f5f5f5;cursor:pointer}.drawer-theme-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.drawer-theme-btn:active{transform:scale(.96)}
 .drawer-backdrop{display:none}
 @media(max-width:860px){
  .sidebar{position:fixed;z-index:120;left:0;top:0;bottom:0;width:85vw;max-width:360px;height:100dvh;transform:translateX(-105%);background:#0a0a0a;border:0;border-right:1px solid #252525;box-shadow:none;transition:transform .23s ease}
@@ -666,9 +666,8 @@ html,body{font-family:var(--font-sans);letter-spacing:normal}
     </section>
   </div>
   <div class="drawer-bottom-bar">
-    <button class="drawer-avatar-btn" id="openSettingsBtn" aria-label="Settings" title="Settings">SM</button>
+    <div class="drawer-footer-actions"><button class="drawer-avatar-btn" id="openSettingsBtn" aria-label="Settings" title="Settings">SM</button><button id="themeToggleBtn" class="drawer-theme-btn" type="button" aria-label="Switch to light mode" title="Switch to light mode"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button></div>
     <span id="providerBadge" hidden>Worker</span><span id="themeLabel" hidden>Dark</span>
-    <button id="themeToggleBtn" class="drawer-theme-hidden" type="button" aria-label="Toggle theme" title="Toggle theme">Theme</button>
   </div>
 </aside>
 <div class="drawer-backdrop" id="drawerBackdrop"></div>
@@ -959,7 +958,16 @@ row.append(label,del);box.appendChild(row);
 }
 function applyTheme() {
 document.documentElement.setAttribute('data-theme', state.theme);
-document.getElementById('themeLabel').textContent = state.theme === 'dark' ? 'Dark' : 'Light';
+const dark = state.theme === 'dark';
+document.getElementById('themeLabel').textContent = dark ? 'Dark' : 'Light';
+const button = document.getElementById('themeToggleBtn');
+if (button) {
+  button.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  button.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+  button.innerHTML = dark
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg>';
+}
 }
 function formatMarkdown(markdown) {
 const escapeHTML = value => String(value)
