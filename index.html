@@ -797,7 +797,7 @@ function decodeGooglePayload(token) {
   try {
     const part = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
     return JSON.parse(atob(part.padEnd(Math.ceil(part.length/4)*4,'=')));
-  } catch { return null; }
+  } catch (error) { return null; }
 }
 function getGoogleCredential() {
   if (!googleCredential) return null;
