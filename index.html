@@ -995,7 +995,7 @@ ULTRON sends requests to your Cloudflare Worker. Keep GEMINI_API_KEY in Cloudfla
 </div>
 <div class="field-group">
 <label>Worker access token (private tools only)</label>
-<input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Only if your Worker has an ACCESS_TOKEN secret" />
+<input type="password" id="accessTokenInput" autocomplete="off" spellcheck="false" placeholder="Session-only owner token (cleared on refresh)" />
 <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Required to use your private Worker. This is only for private browser/connector tools. Google sign-in is used for chat. Never share this token.</p>
 </div>
 <div class="field-group">
@@ -1229,6 +1229,7 @@ tx.onabort = () => reject(tx.error || new Error('Conversation save was interrupt
 function writeWorkspaceMetadata() {
 const safe = { ...state };
 delete safe.threads;
+delete safe.accessToken; // private Worker tokens must never enter persistent browser storage
 safe.threadStorageVersion = THREAD_DB_VERSION;
 localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
 }
@@ -1297,8 +1298,11 @@ if (threadStorageReady) {
 scheduleThreadSave();
 return;
 }
-try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-catch (error) { console.warn('OpenClaude could not save local settings:', error); }
+try {
+const safe = { ...state };
+delete safe.accessToken; // keep the owner token in memory only; never persist it
+localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+} catch (error) { console.warn('OpenClaude could not save local settings:', error); }
 }
 let selectedAttachments = [];
 function renderAttachmentPreview() {
@@ -1692,12 +1696,14 @@ function readStoredState() {
 try {
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
 if (!saved || typeof saved !== 'object') return structuredClone(defaultState);
-return {
+const restored = {
 ...structuredClone(defaultState),
 ...saved,
 threads: Array.isArray(saved.threads) ? saved.threads : (saved.threadStorageVersion === THREAD_DB_VERSION ? [] : structuredClone(defaultState.threads)),
 activeArtifact: saved.activeArtifact || structuredClone(defaultState.activeArtifact)
 };
+delete restored.accessToken; // scrub tokens written by older versions on the next save
+return restored;
 } catch (error) {
 console.warn('OpenClaude storage could not be read:', error);
 return structuredClone(defaultState);
