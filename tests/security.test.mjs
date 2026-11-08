@@ -39,6 +39,17 @@ assert.doesNotMatch(worker, /backend\.composio\.dev\/api\/v3\.1|["']x-api-key["'
 assert.match(worker, /COMPOSIO_MANAGE_CONNECTIONS/, "consumer MCP manages app connections");
 assert.match(worker, /readOnlyPattern/, "connected-app execution remains read-only");
 assert.doesNotMatch(worker, /env\.ACCESS_TOKEN|X-ULTRON-Admin-Token/);
+// Google ID token claims must be strictly time-bound and audience/issuer checked.
+assert.match(worker, /header\.alg !== "RS256" \|\| !header\.kid/);
+assert.match(worker, /claims\.aud !== clientId/);
+assert.match(worker, /claims\.iss === "https:\/\/accounts\.google\.com" \|\| claims\.iss === "accounts\.google\.com"/);
+assert.match(worker, /!Number\.isFinite\(Number\(claims\.iat\)\)/, "iat is mandatory and numeric");
+assert.match(worker, /Number\(claims\.iat\) > now \+ 60/, "iat allows at most 60 seconds of future clock skew");
+assert.match(worker, /Number\(claims\.exp\) < now - 60/, "expired tokens are rejected with at most 60 seconds of clock skew");
+assert.match(worker, /claims\.nbf !== undefined[\s\S]*Number\(claims\.nbf\) > now \+ 60/, "nbf is validated when supplied");
+assert.match(worker, /crypto\.subtle\.verify/, "Google token signature is verified server-side");
+assert.match(worker, /String\(googleIdentity\.sub\)/, "rate limiting keys use the verified Google subject");
+
 assert.match(worker, /function authenticateGoogleRequest\(/);
 assert.match(worker, /function isUltronOwner\(/);
 assert.match(worker, /path === "\/browse"[\s\S]*?isUltronOwner\(auth\.identity, env\)/);
