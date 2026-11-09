@@ -10,5 +10,7 @@ assert.match(html, /const buttonWidth = Math\.max\(200, Math\.min\(320, availabl
 assert.match(html, /window\.google\.accounts\.id\.renderButton\(slot/, "Google sign-in button renders into the visible slot");
 assert.match(html, /Google sign-in could not initialize/, "Google render exceptions produce a visible error");
 assert.match(html, /window\.__ultronGoogleScriptFailed/, "blocked Google sign-in scripts produce a useful error");
+assert.doesNotMatch(html, /id="mobileMicBtn"|id="voiceModeBtn"|startMobileDictation|SpeechRecognition/, "voice input controls and browser recognition are removed");
+assert.match(html, /@media\(max-width:860px\)\{#sendBtn\.send-btn\{display:inline-flex!important\}/, "send button remains visible on mobile");
 scripts.forEach((script, index) => new vm.Script(script, { filename: `index-inline-${index}.js` }));
 console.log(`inline script syntax: ${scripts.length} script(s) passed`);
