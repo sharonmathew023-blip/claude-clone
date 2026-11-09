@@ -24,3 +24,9 @@ limit = 30
 period = 60
 
 # Configure ULTRON_OWNER_EMAIL as a Cloudflare Worker Secret for owner-only routes.
+
+# Remembers which models are resting after errors, so cooldowns survive restarts.
+# Only model names and timestamps are stored here. No keys, tokens or chat text.
+[[kv_namespaces]]
+binding = "ULTRON_STATE"
+id = "310ce550e35b4bcdb0863355c14907f8"
