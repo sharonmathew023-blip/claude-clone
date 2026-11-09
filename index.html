@@ -739,7 +739,7 @@ body{letter-spacing:0}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script id="google-identity-services" src="https://accounts.google.com/gsi/client" async defer onerror="window.__ultronGoogleScriptFailed=true"></script>
 <style>
 [data-theme="dark"] .drawer-header .brand-title,[data-theme="dark"] .drawer-header .brand-mark,[data-theme="dark"] .drawer-header .brand-wordmark{color:#fff!important}[data-theme="light"] .drawer-header .brand-title,[data-theme="light"] .drawer-header .brand-mark,[data-theme="light"] .drawer-header .brand-wordmark{color:#000!important}
 /* ULTRON brand system */
@@ -755,7 +755,7 @@ body{letter-spacing:0}
 .auth-brand svg{width:32px;height:27px}
 .auth-card h1{font-size:1.55rem;line-height:1.2;margin:0 0 10px}
 .auth-card p{font-size:.9rem;line-height:1.55;color:var(--text-secondary);margin:0 0 22px}
-.google-signin-slot{display:flex;justify-content:center;min-height:44px;margin:0 auto 18px}
+.google-signin-slot{display:flex;justify-content:center;align-items:center;width:min(100%,320px);min-height:44px;margin:0 auto 18px;overflow:visible}#googleSignInButton iframe{max-width:100%!important}
 .auth-privacy{font-size:.78rem!important;margin:0!important}
 .auth-privacy a{color:var(--accent-terracotta)}
 .auth-error{min-height:20px;color:#e07878!important;font-size:.8rem!important;margin:12px 0 0!important}
@@ -1112,19 +1112,33 @@ function restoreGoogleSessionUI() {
   return true;
 }
 function initializeGoogleSignIn(attempt=0) {
+  const slot = document.getElementById('googleSignInButton');
+  if (!slot) return;
   if (window.google?.accounts?.id) {
-    window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:true,ux_mode:'popup'});
-    window.google.accounts.id.renderButton(document.getElementById('googleSignInButton'),{type:'standard',theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:260,logo_alignment:'left'});
-    if (getGoogleCredential()) {
-      document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
-      const avatar=document.getElementById('topProfileBtn');if(avatar)avatar.textContent=(googleAccountName||'S').slice(0,1).toUpperCase();
-      const greeting=document.getElementById('greetingName');if(greeting)greeting.textContent=googleAccountName||'there';
-      document.getElementById('authGate').style.display='none';
-    } else showGoogleLogin();
+    try {
+      window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,auto_select:true,ux_mode:'popup'});
+      slot.replaceChildren();
+      const availableWidth = Math.floor(slot.getBoundingClientRect().width || 260);
+      const buttonWidth = Math.max(200, Math.min(320, availableWidth));
+      window.google.accounts.id.renderButton(slot,{type:'standard',theme:'filled_black',size:'large',shape:'pill',text:'continue_with',width:buttonWidth,logo_alignment:'left'});
+      if (getGoogleCredential()) {
+        document.getElementById('googleAccountLabel').textContent = googleAccountEmail;
+        const avatar=document.getElementById('topProfileBtn');if(avatar)avatar.textContent=(googleAccountName||'S').slice(0,1).toUpperCase();
+        const greeting=document.getElementById('greetingName');if(greeting)greeting.textContent=googleAccountName||'there';
+        document.getElementById('authGate').style.display='none';
+      } else showGoogleLogin();
+    } catch (_) {
+      showGoogleLogin('Google sign-in could not initialize. Refresh the page and try again.');
+    }
     return;
   }
-  if (attempt < 40) setTimeout(()=>initializeGoogleSignIn(attempt+1),250);
-  else showGoogleLogin('Google sign-in did not load. Check your connection and refresh.');
+  if (attempt < 40) {
+    setTimeout(()=>initializeGoogleSignIn(attempt+1),250);
+  } else if (window.__ultronGoogleScriptFailed) {
+    showGoogleLogin('Google sign-in was blocked or could not load. Check your connection and allow accounts.google.com, then refresh.');
+  } else {
+    showGoogleLogin('Google sign-in did not initialize. Check your connection and refresh.');
+  }
 }
 const STORAGE_KEY = 'openclaude_worker_v3';
 try { localStorage.removeItem('openclaude_direct_v2'); } catch (_) {}
