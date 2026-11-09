@@ -468,6 +468,7 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
 .hero-empty{margin:8vh auto 28px}.hero-spark{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:17px;background:color-mix(in srgb,var(--accent-terracotta) 13%,var(--bg-surface));color:var(--accent-terracotta)}.hero-greeting{font-family:var(--font-sans);font-weight:750;letter-spacing:-.055em;font-size:clamp(2rem,5vw,3rem)}.hero-sub{max-width:440px;margin-left:auto;margin-right:auto;line-height:1.65}
 .starter-card{border-radius:16px;padding:17px;min-height:94px;transition:transform .18s,border-color .18s,background .18s}.starter-card:hover{transform:translateY(-2px);background:var(--bg-elevated);border-color:var(--accent-terracotta)}
 .msg-row{gap:8px}.msg-user{border-radius:19px 19px 5px 19px;padding:13px 17px}.msg-assistant{font-family:var(--font-sans);font-size:1rem;line-height:1.75}
+.msg-model{margin-left:4px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 .72rem var(--font-sans);color:var(--text-secondary)}
 .msg-actions{display:flex;gap:6px;align-items:center;opacity:.78}.msg-action-btn{border:1px solid var(--border-hairline);background:var(--bg-surface);color:var(--text-secondary);border-radius:8px;padding:5px 9px;font:500 .72rem var(--font-sans);cursor:pointer}.msg-action-btn:hover{color:var(--text-primary);border-color:var(--accent-terracotta);background:var(--bg-elevated)}
 .msg-assistant pre{position:relative;background:#171d2b;color:#e6eaf5;border:1px solid #343e55;border-radius:14px;padding:42px 16px 16px;margin:15px 0;overflow:auto;line-height:1.65;tab-size:2}.msg-assistant pre code{color:inherit;font:.83rem/1.65 var(--font-mono);white-space:pre}.code-toolbar{position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:rgba(255,255,255,.055);border-bottom:1px solid rgba(255,255,255,.1);color:#aeb9d3;font:.68rem var(--font-mono)}.code-copy-btn{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#e6eaf5;border-radius:6px;padding:3px 8px;font:.68rem var(--font-sans);cursor:pointer}.msg-assistant code:not(pre code){font:.84em var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border-hairline);padding:2px 5px;border-radius:6px}
 .composer-wrap{padding:14px 20px max(18px,env(safe-area-inset-bottom));border-top:0}.composer-box{border-radius:19px;padding:13px 15px 11px;border-color:var(--border-hairline);box-shadow:0 10px 32px rgba(25,35,65,.09)}.composer-box:focus-within{border-color:var(--accent-terracotta);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-terracotta) 13%,transparent),0 12px 34px rgba(25,35,65,.12)}
@@ -1573,6 +1574,13 @@ copyButton.addEventListener('click', async () => {
   setTimeout(() => { copyButton.textContent = 'Copy'; }, 1400);
 });
 actions.appendChild(copyButton);
+if (m.role !== 'user' && !m.isError && typeof m.model === 'string' && m.model) {
+  const modelTag = document.createElement('span');
+  modelTag.className = 'msg-model';
+  modelTag.textContent = (m.modelBackup ? 'Answered by ' + m.model + ' (backup model)' : 'Answered by ' + m.model);
+  modelTag.title = m.modelBackup ? 'Your main model was busy, so ULTRON switched to this one.' : 'The model that wrote this reply.';
+  actions.appendChild(modelTag);
+}
 
 row.appendChild(actions);
 container.appendChild(row);
@@ -1719,7 +1727,16 @@ if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Worker URL mus
 if (url.pathname === '/' || url.pathname === '') url.pathname = '/chat/completions';
 return url.toString();
 }
+// Which model answered the latest reply. The Worker reports it in the X-ULTRON-Model header
+// and in every streamed chunk, so the label stays right even if a proxy strips the header.
+let lastReplyModel = '';
+// A server-side setup problem (for example a rejected API key). Retrying or switching models cannot fix it.
+function isSetupProblem(message) {
+  const text = String(message || '');
+  return /GEMINI_API_KEY/.test(text) && /API key/i.test(text);
+}
 async function readWorkerReply(response, onChunk) {
+  lastReplyModel = '';
   if (!response.ok) {
     const body = await response.text();
     let message = body || response.statusText || 'Unknown server error';
@@ -1728,16 +1745,19 @@ async function readWorkerReply(response, onChunk) {
       message = parsed.error?.message || parsed.error || parsed.message || message;
       if (typeof message !== 'string') message = JSON.stringify(message);
     } catch (_) {}
-    const failure = new Error(friendlyHttpMessage(response.status, message));
-    failure.retryable = RETRYABLE_STATUS.has(response.status);
+    const setup = isSetupProblem(message);
+    const failure = new Error(setup ? message : friendlyHttpMessage(response.status, message));
+    failure.retryable = !setup && RETRYABLE_STATUS.has(response.status);
     failure.retryAfter = parseRetryAfter(response.headers.get('retry-after'));
     failure.modelGone = isModelProblem(response.status, message);
     throw failure;
   }
+  lastReplyModel = response.headers.get('x-ultron-model') || '';
   if (!response.body || !response.body.getReader) {
     const body = await response.text();
     try {
       const data = JSON.parse(body);
+      if (typeof data.model === 'string' && data.model) lastReplyModel = data.model;
       const content = data.choices?.[0]?.message?.content ?? data.response ?? data.content;
       if (typeof content === 'string' && content.trim()) { if (onChunk) onChunk(content); return content; }
     } catch (_) {}
@@ -1757,6 +1777,7 @@ async function readWorkerReply(response, onChunk) {
     let event;
     try { event = JSON.parse(payload); } catch (_) { return; }
     if (event.error) throw streamError(event.error);
+    if (typeof event.model === 'string' && event.model) lastReplyModel = event.model;
     const piece = event.choices?.[0]?.delta?.content ?? event.choices?.[0]?.message?.content ?? event.choices?.[0]?.text ?? event.response ?? '';
     if (typeof piece === 'string' && piece) {
       full += piece;
@@ -1813,8 +1834,9 @@ default: return `The server returned HTTP ${status}.${d}`;
 function streamError(e) {
 const message = typeof e === 'string' ? e : (e.message || JSON.stringify(e));
 const code = Number(e && e.code) || 0;
-const err = new Error(code ? friendlyHttpMessage(code, message) : message);
-err.retryable = RETRYABLE_STATUS.has(code);
+const setup = isSetupProblem(message);
+const err = new Error(code && !setup ? friendlyHttpMessage(code, message) : message);
+err.retryable = !setup && RETRYABLE_STATUS.has(code);
 err.modelGone = isModelProblem(code, message);
 return err;
 }
@@ -2101,6 +2123,7 @@ if (!streamingAssistant) {
   streamingAssistant = { role: 'assistant', content: partial, hasArtifact: false };
   thread.messages.push(streamingAssistant);
 } else streamingAssistant.content = partial;
+if (lastReplyModel) streamingAssistant.model = lastReplyModel;
 const artifact = extractArtifactFromReply(partial);
 if (artifact) {
   generatedArtifact = true;
@@ -2163,12 +2186,15 @@ saveState();
 renderChat();
 return;
 }
+const answeredBy = !isError && model === 'cloudflare-worker' ? lastReplyModel : '';
+const wantedModel = (state.model || '').trim() || 'gemini-3.5-flash';
 if (streamingAssistant) {
 streamingAssistant.content = replyText;
 streamingAssistant.hasArtifact = generatedArtifact;
 streamingAssistant.isError = isError;
+if (answeredBy) { streamingAssistant.model = answeredBy; streamingAssistant.modelBackup = answeredBy !== wantedModel; } else { delete streamingAssistant.model; delete streamingAssistant.modelBackup; }
 } else {
-thread.messages.push({ role: 'assistant', content: replyText, hasArtifact: generatedArtifact, isError });
+thread.messages.push({ role: 'assistant', content: replyText, hasArtifact: generatedArtifact, isError, ...(answeredBy ? { model: answeredBy, modelBackup: answeredBy !== wantedModel } : {}) });
 }
 if (!statusEl.textContent.includes('failed')) statusEl.textContent = 'Engine: Ready';
 saveState();
