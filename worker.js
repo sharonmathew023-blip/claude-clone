@@ -28,7 +28,16 @@ const MAX_MESSAGES = 200;
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MODEL_GONE_STATUS = 404; // retired model: move on to the next one, do not retry it
 const HEADERS_TIMEOUT_MS = 20_000; // wait for the first response headers, not for the whole stream
-const ATTEMPTS_PER_MODEL = 2;
+const ATTEMPTS_PER_MODEL = 3; // first try plus two retries, with exponential backoff between them
+const MIN_ATTEMPT_MS = 2_000; // do not start an attempt with less budget than this
+const BACKOFF_BASE_MS = 400; // wait ~400ms, ~800ms, ~1.6s ... (jittered) between retries of one model
+const BACKOFF_MAX_MS = 3_000;
+// How long a model rests after a failure. Rate limits use Google's own hint when it sends one.
+const COOLDOWN_MS = { rateLimited: 60_000, overloaded: 30_000, timeout: 20_000, gone: 600_000 };
+const COOLDOWN_MIN_MS = 5_000;
+const COOLDOWN_MAX_MS = 600_000;
+const COOLDOWN_KV_KEY = "model-cooldowns:v1";
+const COOLDOWN_CACHE_MS = 3_000; // re-read the KV copy at most this often
 const TOTAL_BUDGET_MS = 45_000; // keep the answer inside the browser's 60s request timeout
 // Skills may only narrow the Worker's read-only tool access. Nothing in a
 // request can widen these grants, and write tools never exist here.
@@ -38,7 +47,7 @@ const SKILL_MARKER = "<<<SKILL";
 const MAX_SKILLS_PER_REQUEST = 8;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cors = corsFor(request, env);
     const reply = (data, status = 200, extra) => jsonResponse(data, status, cors.headers, extra);
@@ -127,7 +136,7 @@ export default {
     }
 
     if (request.method === "GET" && (path === "" || path === "/health")) {
-      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), skillEngine: "2.0.0", message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
+      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), cooldownStore: env.ULTRON_STATE ? "kv" : "memory", skillEngine: "2.0.0", message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
@@ -209,16 +218,17 @@ export default {
         return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Connected app tools are restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
       }
       try {
-        const agentReply = await runComposioToolAgent(input, model, env, skillAccess);
+        const agentReply = await runComposioToolAgent(input, model, env, skillAccess, ctx);
         return new Response(toStaticOpenAIStream(agentReply.text, agentReply.model), {
-          headers: { ...cors.headers, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
+          headers: { ...cors.headers, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "X-ULTRON-Model": agentReply.model },
         });
       } catch (error) {
         return fail(502, error.message || "Connected tool execution failed.");
       }
     }
 
-    const result = await callGemini(buildModelChain(model, env), JSON.stringify(geminiBody), env.GEMINI_API_KEY);
+    const chain = buildModelChain(model, env);
+    const result = await callGemini(chain, JSON.stringify(geminiBody), env.GEMINI_API_KEY, makeHealth(env, ctx));
     if (result.error) {
       const extra = result.error.retryAfter ? { "Retry-After": result.error.retryAfter } : undefined;
       return fail(result.error.status, result.error.message, extra);
@@ -230,6 +240,8 @@ export default {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
+        "X-ULTRON-Model": result.model,
+        "X-ULTRON-Fallback": result.model === chain[0] ? "false" : "true",
       },
     });
   },
@@ -395,7 +407,7 @@ function composioMcpSchema(schema, depth = 0) {
   return output;
 }
 
-async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
+async function runComposioToolAgent(input, requestedModel, env, skillAccess, ctx) {
   const hasComposio = Boolean(input.composioSessionId);
   const allowedTools = skillAccess && skillAccess.present
     ? new Set(skillAccess.tools)
@@ -431,9 +443,10 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
   body.tools = [{ functionDeclarations: declarations }];
 
   const chain = buildModelChain(requestedModel, env);
+  const health = makeHealth(env, ctx);
   let model = chain[0], finalText = "", searchSessionId = "";
   for (let round = 0; round < 5; round++) {
-    const generated = await callGeminiJson(chain, body, env.GEMINI_API_KEY);
+    const generated = await callGeminiJson(chain, body, env.GEMINI_API_KEY, health);
     if (generated.error) throw new Error(generated.error.message);
     model = generated.model;
     const candidate = generated.data.candidates?.[0];
@@ -482,7 +495,7 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
     }
   }
   if (!finalText) {
-    const last = await callGeminiJson(chain, { ...body, tools: undefined }, env.GEMINI_API_KEY);
+    const last = await callGeminiJson(chain, { ...body, tools: undefined }, env.GEMINI_API_KEY, health);
     if (last.error) throw new Error(last.error.message);
     model = last.model;
     finalText = (last.data.candidates?.[0]?.content?.parts || []).map(part => part.text || "").join("");
@@ -490,22 +503,35 @@ async function runComposioToolAgent(input, requestedModel, env, skillAccess) {
   if (!finalText.trim()) throw new Error("The model completed tool calls but returned no final text.");
   return { text: finalText, model };
 }
-async function callGeminiJson(chain, body, apiKey) {
-  let last = { status:502, message:"Could not reach Gemini." };
-  for (const model of chain) {
-    try {
-      const response = await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
-        method:"POST", headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
-        body:JSON.stringify(body), signal:AbortSignal.timeout(45000),
-      });
-      const raw = await response.text(); let data = {};
-      try { data = raw ? JSON.parse(raw) : {}; } catch {}
-      if (response.ok) return { data, model };
-      last = { status:response.status, message:extractMessage(raw) || `Gemini returned HTTP ${response.status}.` };
-      if (![404,429,500,502,503,504].includes(response.status)) break;
-    } catch (error) { last = { status:502, message:error.message || "Could not reach Gemini." }; }
+async function callGeminiJson(chain, body, apiKey, health) {
+  let last = { status: 502, message: "Could not reach Gemini." };
+  await health.load();
+  for (const model of health.order(chain)) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify(body), signal: AbortSignal.timeout(45000),
+        });
+        const raw = await response.text(); let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch {}
+        if (response.ok) { await health.clear(model); return { data, model }; }
+        const hint = retryHintMs(response.headers.get("Retry-After"), raw);
+        last = { status: response.status, message: extractMessage(raw) || `Gemini returned HTTP ${response.status}.` };
+        if (isKeyProblem(response.status, raw)) { console.error(`[ultron] Gemini rejected the API key (HTTP ${response.status}).`); return { error: keyError() }; }
+        if (response.status === 429) { await health.mark(model, hint || COOLDOWN_MS.rateLimited, "rate-limited"); break; }
+        if (response.status === MODEL_GONE_STATUS) { await health.mark(model, COOLDOWN_MS.gone, "not-found"); break; }
+        if (!RETRY_STATUS.has(response.status)) return { error: last };
+        if (attempt < 2) await sleep(backoffDelay(attempt, hint)); else await health.mark(model, COOLDOWN_MS.overloaded, "overloaded");
+      } catch (error) {
+        const timedOut = error && (error.name === "TimeoutError" || error.name === "AbortError");
+        last = { status: timedOut ? 504 : 502, message: timedOut ? "Gemini did not respond in time." : "Could not reach Gemini." };
+        await health.mark(model, timedOut ? COOLDOWN_MS.timeout : COOLDOWN_MS.overloaded, timedOut ? "timeout" : "unreachable");
+        break;
+      }
+    }
   }
-  return { error:last };
+  return { error: last };
 }
 async function readPublicPageForAgent(value) {
   let target;
@@ -640,13 +666,160 @@ function buildModelChain(requested, env) {
   return chain;
 }
 
-/* ---------- Gemini call with retries and model fallback ---------- */
+/* ---------- per-model cooldown ---------- */
+
+// A model that just failed rests at the back of the line instead of being hit again.
+// Memory is per Worker isolate. Bind a KV namespace named ULTRON_STATE and the same
+// map is also saved there, so it survives restarts and is shared across locations.
+// Without that binding everything still works, with memory only.
+const memCooldowns = new Map(); // model -> epoch ms when it may be tried again
+let kvCooldownCache = { at: 0, map: {} };
+
+function makeHealth(env, ctx) {
+  const kv = env && env.ULTRON_STATE && typeof env.ULTRON_STATE.get === "function" ? env.ULTRON_STATE : null;
+
+  async function save() {
+    if (!kv) return;
+    const now = Date.now();
+    const map = {};
+    for (const [name, until] of memCooldowns) if (until > now) map[name] = until;
+    kvCooldownCache = { at: now, map };
+    const job = Promise.resolve()
+      .then(() => kv.put(COOLDOWN_KV_KEY, JSON.stringify(map), { expirationTtl: 3600 }))
+      .catch(() => {}); // a failed save only costs persistence, never the chat
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(job); else await job;
+  }
+
+  return {
+    persistent: Boolean(kv),
+    async load() {
+      if (!kv || Date.now() - kvCooldownCache.at < COOLDOWN_CACHE_MS) return;
+      try {
+        const stored = await kv.get(COOLDOWN_KV_KEY, "json");
+        kvCooldownCache = { at: Date.now(), map: stored && typeof stored === "object" ? stored : {} };
+        for (const [name, until] of Object.entries(kvCooldownCache.map)) {
+          if (Number(until) > (memCooldowns.get(name) || 0)) memCooldowns.set(name, Number(until));
+        }
+      } catch {
+        kvCooldownCache = { at: Date.now(), map: kvCooldownCache.map };
+      }
+    },
+    // Same order as the chain, except models that are resting go last (soonest to wake first).
+    // Resting models are still tried as a last resort, so a cooldown never causes an outage.
+    order(chain) {
+      const now = Date.now();
+      const ready = [], resting = [];
+      for (const name of chain) ((memCooldowns.get(name) || 0) > now ? resting : ready).push(name);
+      resting.sort((a, b) => memCooldowns.get(a) - memCooldowns.get(b));
+      return [...ready, ...resting];
+    },
+    isResting(model) { return (memCooldowns.get(model) || 0) > Date.now(); },
+    async mark(model, ms, reason) {
+      const wait = Math.min(COOLDOWN_MAX_MS, Math.max(COOLDOWN_MIN_MS, Number(ms) || COOLDOWN_MS.overloaded));
+      memCooldowns.set(model, Date.now() + wait);
+      console.warn(`[ultron] ${model} resting ${Math.round(wait / 1000)}s (${reason})`);
+      await save();
+    },
+    async clear(model) { if (memCooldowns.delete(model)) await save(); },
+  };
+}
+
+/* ---------- errors, hints and backoff ---------- */
+
+// Strip anything that looks like a credential before text can reach a client or a log.
+function redact(text) {
+  return String(text == null ? "" : text)
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]")
+    .replace(/([?&]key=)[^&\s"']+/gi, "$1[redacted]")
+    .replace(/(x-goog-api-key["']?\s*[:=]\s*["']?)[^\s"',]+/gi, "$1[redacted]")
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+\/=-]{12,}/gi, "$1[redacted]")
+    .replace(/\bck_[A-Za-z0-9_-]{10,}/g, "[redacted]");
+}
+
+// How long Google asked us to wait, in ms: the Retry-After header or the retryDelay hint in the error body.
+function retryHintMs(headerValue, text) {
+  const seconds = Number(headerValue);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  const m = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(text || "");
+  return m ? Number(m[1]) * 1000 : 0;
+}
+
+// A rejected key is a setup problem. No other model can fix it, and the details stay out of the response.
+function isKeyProblem(status, text) {
+  if (status === 401 || status === 403) return true;
+  return status === 400 && /API_KEY_INVALID|API key not valid|API key expired|invalid api key/i.test(text || "");
+}
+
+function keyError() {
+  return {
+    status: 503,
+    message: "ULTRON's AI service rejected the server's API key. This is a setup problem on the server, not on your side. The site owner needs to check the GEMINI_API_KEY secret.",
+    keyProblem: true,
+  };
+}
+
+// Exponential backoff with jitter: ~400ms, ~800ms, ~1.6s ... capped. Google's own hint wins when it is short.
+function backoffDelay(attempt, hintMs) {
+  const ceiling = Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (attempt - 1));
+  const jittered = ceiling / 2 + Math.random() * (ceiling / 2);
+  return hintMs > 0 && hintMs <= BACKOFF_MAX_MS ? Math.max(jittered, hintMs) : jittered;
+}
+
+/* ---------- Gemini call with retries, backoff, cooldowns and model fallback ---------- */
+
+// Reads up to the first complete SSE event, so an error frame sent inside a 200 response
+// still triggers a retry or a fallback before any text reaches the browser.
+async function primeStream(res) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  const held = [];
+  let text = "";
+  try {
+    while (!/\r?\n\r?\n/.test(text)) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      held.push(value);
+      text += dec.decode(value, { stream: true });
+    }
+  } catch (err) {
+    reader.cancel().catch(() => {});
+    throw err;
+  }
+  let first = null;
+  for (const line of text.split(/\r?\n\r?\n/)[0].split(/\r?\n/)) {
+    if (line.startsWith("data:")) { try { first = JSON.parse(line.slice(5).trim()); } catch {} }
+  }
+  if (first && first.error) {
+    reader.cancel().catch(() => {});
+    const status = Number(first.error.code) || 502;
+    const raw = JSON.stringify(first.error);
+    return {
+      failure: {
+        status,
+        message: redact(first.error.message || "Gemini reported an error.").slice(0, 300),
+        retryAfterMs: retryHintMs(null, raw),
+        keyProblem: isKeyProblem(status, raw),
+      },
+    };
+  }
+  const body = new ReadableStream({
+    start(ctl) { for (const chunk of held) ctl.enqueue(chunk); },
+    async pull(ctl) {
+      try {
+        const { value, done } = await reader.read();
+        if (done) ctl.close(); else ctl.enqueue(value);
+      } catch (err) { ctl.error(err); }
+    },
+    cancel(reason) { return reader.cancel(reason); },
+  });
+  return { body };
+}
 
 // One attempt against one model. Resolves to { res, model } or a plain error record.
-async function callModel(model, body, apiKey) {
+async function callModel(model, body, apiKey, timeoutMs = HEADERS_TIMEOUT_MS) {
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), HEADERS_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -654,14 +827,22 @@ async function callModel(model, body, apiKey) {
       body,
       signal: ctrl.signal,
     });
-    clearTimeout(timer); // headers arrived: the stream itself runs without a cutoff
-    if (res.ok) return { res, model };
-    const text = await res.text().catch(() => "");
-    return {
-      status: res.status,
-      message: extractMessage(text) || `Gemini API returned HTTP ${res.status}.`,
-      retryAfter: res.headers.get("Retry-After") || undefined,
-    };
+    if (!res.ok) {
+      clearTimeout(timer);
+      const text = await res.text().catch(() => "");
+      const retryAfterMs = retryHintMs(res.headers.get("Retry-After"), text);
+      return {
+        status: res.status,
+        message: extractMessage(text) || `Gemini API returned HTTP ${res.status}.`,
+        retryAfter: retryAfterMs ? String(Math.ceil(retryAfterMs / 1000)) : undefined,
+        retryAfterMs,
+        keyProblem: isKeyProblem(res.status, text),
+      };
+    }
+    const primed = await primeStream(res); // the first event must arrive before the timer fires
+    clearTimeout(timer); // from here the stream itself runs without a cutoff
+    if (primed.failure) return primed.failure;
+    return { res: { body: primed.body }, model };
   } catch (err) {
     clearTimeout(timer);
     return err && err.name === "AbortError"
@@ -670,31 +851,46 @@ async function callModel(model, body, apiKey) {
   }
 }
 
-async function callGemini(chain, body, apiKey) {
+async function callGemini(chain, body, apiKey, health) {
   const started = Date.now();
   const tried = [];
   let last = { status: 502, message: "Could not reach the Gemini API." };
+  await health.load();
 
-  for (const model of chain) {
+  for (const model of health.order(chain)) {
     tried.push(model);
-    for (let attempt = 1; attempt <= ATTEMPTS_PER_MODEL; attempt++) {
-      if (Date.now() - started > TOTAL_BUDGET_MS) return { error: busyError(tried, last) };
+    // A model that is resting gets one quick try as a last resort, not a full set of retries.
+    const attempts = health.isResting(model) ? 1 : ATTEMPTS_PER_MODEL;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const left = TOTAL_BUDGET_MS - (Date.now() - started);
+      if (left < MIN_ATTEMPT_MS) return { error: busyError(tried, last) };
 
-      const outcome = await callModel(model, body, apiKey);
-      if (outcome.res) return outcome; // this model answered
-      last = outcome;
-
-      // A bad key or a bad request will not be fixed by trying another model.
-      if (!RETRY_STATUS.has(outcome.status) && outcome.status !== MODEL_GONE_STATUS) return { error: outcome };
-      // A retired model or one that just stalled will not improve on a second try.
-      if (outcome.status === MODEL_GONE_STATUS || outcome.timedOut) break;
-      // Each model has its own quota, so a rate limit is better spent on the next model.
-      if (outcome.status === 429) break;
-
-      if (attempt < ATTEMPTS_PER_MODEL) {
-        const ra = Number(outcome.retryAfter);
-        await sleep(ra > 0 && ra <= 2 ? ra * 1000 : 350 * attempt + Math.random() * 250);
+      const outcome = await callModel(model, body, apiKey, Math.min(HEADERS_TIMEOUT_MS, left));
+      if (outcome.res) { // this model answered
+        await health.clear(model);
+        return { ...outcome, tried };
       }
+      last = outcome;
+      console.warn(`[ultron] ${model} attempt ${attempt}/${attempts} failed: HTTP ${outcome.status}${outcome.timedOut ? " (timeout)" : ""}`);
+
+      // A rejected key will not be fixed by another model, and its details never leave the Worker.
+      if (outcome.keyProblem) {
+        console.error(`[ultron] Gemini rejected the API key (HTTP ${outcome.status}).`);
+        return { error: keyError() };
+      }
+      // A bad request will not be fixed by trying another model either.
+      if (!RETRY_STATUS.has(outcome.status) && outcome.status !== MODEL_GONE_STATUS) return { error: outcome };
+
+      // Each model has its own quota: a rate limit is better spent on the next model.
+      if (outcome.status === 429) { await health.mark(model, outcome.retryAfterMs || COOLDOWN_MS.rateLimited, "rate-limited"); break; }
+      // A retired model will not come back.
+      if (outcome.status === MODEL_GONE_STATUS) { await health.mark(model, COOLDOWN_MS.gone, "not-found"); break; }
+      // A model that just stalled will not improve on a second try.
+      if (outcome.timedOut) { await health.mark(model, COOLDOWN_MS.timeout, "timeout"); break; }
+
+      // 500, 502, 503, 504: back off exponentially, then rest the model if it never recovers.
+      if (attempt < attempts) await sleep(backoffDelay(attempt, outcome.retryAfterMs));
+      else await health.mark(model, COOLDOWN_MS.overloaded, "overloaded");
     }
   }
   return { error: busyError(tried, last) };
@@ -703,7 +899,7 @@ async function callGemini(chain, body, apiKey) {
 // Every model in the chain is busy: say that once, instead of echoing one model's error.
 function busyError(tried, last) {
   const status = last && last.status === 429 ? 429 : last && last.status === 504 ? 504 : 503;
-  const reason = (last && last.message) || "The model is busy.";
+  const reason = redact((last && last.message) || "The model is busy.").slice(0, 200);
   return {
     status,
     message: `Google's models are busy right now, so this Worker could not get an answer (tried ${tried.join(", ")}). Last error: ${reason} Please try again in a moment.`,
@@ -713,14 +909,15 @@ function busyError(tried, last) {
 
 function extractMessage(text) {
   if (!text) return "";
+  let message = "";
   try {
     const j = JSON.parse(text);
     const e = Array.isArray(j) ? j[0] && j[0].error : j.error;
-    if (typeof e === "string") return e;
-    return (e && e.message) || j.message || "";
+    message = typeof e === "string" ? e : (e && e.message) || j.message || "";
   } catch {
-    return text.slice(0, 300);
+    message = text;
   }
+  return redact(message).slice(0, 300);
 }
 
 /* ---------- Gemini SSE -> OpenAI SSE ---------- */
@@ -902,7 +1099,7 @@ function corsFor(request, env) {
   const headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Expose-Headers": "Retry-After",
+    "Access-Control-Expose-Headers": "Retry-After, X-ULTRON-Model, X-ULTRON-Fallback",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -921,7 +1118,7 @@ function errorType(status) {
 }
 
 function errorBody(status, message) {
-  return { error: { message, type: errorType(status), code: status } };
+  return { error: { message: redact(message), type: errorType(status), code: status } };
 }
 
 function jsonResponse(data, status, corsHeaders, extra) {
