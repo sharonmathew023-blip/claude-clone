@@ -22,7 +22,7 @@ shrink("BACKOFF_MAX_MS", 100);
 shrink("MIN_ATTEMPT_MS", 50);
 shrink("TOTAL_BUDGET_MS", 5000);
 source += `
-export { callGemini, callGeminiJson, makeHealth, memCooldowns, redact, errorBody, toOpenAIStream, buildModelChain };
+export { callGemini, callGeminiJson, makeHealth, memCooldowns, redact, errorBody, toOpenAIStream, buildModelChain, readStreamTextLimited };
 export function __reset() { memCooldowns.clear(); kvCooldownCache = { at: 0, map: {} }; }
 `;
 const tmpFile = path.join(here, ".worker.under-test.mjs");
@@ -364,4 +364,22 @@ test("agent path: 429 falls to the next model, rests it, and invalid key is hand
   assert.equal(bad.error.status, 503);
   assert.ok(!bad.error.message.includes(FAKE_KEY));
   assert.match(bad.error.message, /GEMINI_API_KEY/);
+});
+
+// --- bounded UTF-8 stream reader -------------------------------------------
+test("bounded stream reader counts UTF-8 bytes, not JavaScript characters", async () => {
+  const emoji = enc.encode("🙂");
+  const split = new ReadableStream({ start(controller) { controller.enqueue(emoji.slice(0, 2)); controller.enqueue(emoji.slice(2)); controller.close(); } });
+  assert.equal(await W.readStreamTextLimited(split, 4), "🙂");
+  await assert.rejects(W.readStreamTextLimited(new Response("🙂").body, 3), { code: "PAYLOAD_TOO_LARGE" });
+});
+
+test("bounded stream reader cancels an oversized upstream response", async () => {
+  let canceled = false;
+  const stream = new ReadableStream({
+    start(controller) { controller.enqueue(enc.encode("123456")); },
+    cancel() { canceled = true; },
+  });
+  await assert.rejects(W.readStreamTextLimited(stream, 5), { code: "PAYLOAD_TOO_LARGE" });
+  assert.equal(canceled, true);
 });
