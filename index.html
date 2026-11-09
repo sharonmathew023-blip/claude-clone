@@ -798,7 +798,7 @@ body{letter-spacing:0}
 #sendBtn.send-btn{display:inline-flex!important;align-items:center;justify-content:center}
 #sendBtn.send-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 #voiceModeBtn.voice-mode-btn svg{fill:none!important;stroke:currentColor!important;stroke-width:1.9!important;stroke-linecap:round!important;stroke-linejoin:round!important}
-@media(max-width:860px){#sendBtn.send-btn{display:none!important}.settings-save-btn{min-height:44px;padding:0 22px}}
+@media(max-width:860px){#sendBtn.send-btn{display:inline-flex!important}.settings-save-btn{min-height:44px;padding:0 22px}}
 
 #settingsModal.modal-backdrop{overflow-y:auto!important;padding:18px 14px max(18px,env(safe-area-inset-bottom))!important;align-items:center!important}
 #settingsModal .modal-card{width:min(100%,560px)!important;max-height:calc(100dvh - 36px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;position:relative!important;scrollbar-width:thin}
@@ -949,7 +949,7 @@ svg.ui-icon{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;s
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files" title="Attach files"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
 <textarea id="promptInput" class="composer-textarea" rows="1" enterkeyhint="enter" placeholder="Ask ULTRON" aria-label="Message"></textarea>
 <div id="slashCommandMenu" class="slash-command-menu" role="listbox" aria-label="Slash commands" hidden></div><div id="attachmentPreview" class="attachment-preview"></div>
-<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="web-search-toggle" id="webSearchToggle" type="button" aria-pressed="false" title="Use Google Search for this answer"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>Search</button><button class="mobile-mic-btn" id="mobileMicBtn" type="button" title="Voice typing" aria-label="Voice typing"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button><button class="voice-mode-btn" id="voiceModeBtn" type="button" title="Start voice assistant" aria-label="Start voice assistant"><svg viewBox="0 0 24 24"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg></button></div>
+<div class="composer-actions"><span class="composer-status" id="engineStatus">Engine: Cloudflare Worker Ready</span><button class="web-search-toggle" id="webSearchToggle" type="button" aria-pressed="false" title="Use Google Search for this answer"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>Search</button><button class="send-btn" id="sendBtn" type="button" title="Send message" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button></div>
 </div><div class="home-indicator" aria-hidden="true"></div></div>
 </main>
 <aside class="artifact-pane" id="artifactPane">
@@ -2229,43 +2229,9 @@ document.getElementById('chatMenuBtn').addEventListener('click',e=>{e.stopPropag
 document.addEventListener('click',e=>{if(!e.target.closest('#chatOptionsMenu')&&!e.target.closest('#chatMenuBtn'))closeChatMenu();});
 // Mobile history control opens the existing conversation drawer.
 
-function startMobileDictation(sendAfter = false) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { alert('Voice input is not supported in this browser.'); return; }
-  const recognition = new SpeechRecognition();
-  recognition.lang = navigator.language || 'en-US'; recognition.interimResults = true; recognition.continuous = false;
-  const input = document.getElementById('promptInput');
-  const start = input.value ? input.value + ' ' : '';
-  recognition.onresult = event => { let text = ''; for (let i=event.resultIndex;i<event.results.length;i++) text += event.results[i][0].transcript; input.value = start + text; };
-  recognition.onerror = () => { document.getElementById('engineStatus').textContent = 'Voice input unavailable.'; };
-  recognition.onend = () => { if (sendAfter && input.value.trim()) handleSend(); };
-  recognition.start();
-}
 function updateComposerAction() {
   if (window.SkillEngineUI) window.SkillEngineUI.scheduleStrip();
-  const button = document.getElementById('voiceModeBtn');
-  const input = document.getElementById('promptInput');
-  if (!button || !input) return;
-  const hasContent = Boolean(input.value.trim() || selectedAttachments.length);
-  if (activeRequest) {
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
-    button.title = 'Stop generation';
-    button.setAttribute('aria-label', 'Stop generation');
-  } else if (hasContent) {
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg>';
-    button.title = 'Send message';
-    button.setAttribute('aria-label', 'Send message');
-  } else {
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4m4-8v12m4-16v20m4-15v10m4-7v4"/></svg>';
-    button.title = 'Start voice assistant';
-    button.setAttribute('aria-label', 'Start voice assistant');
-  }
 }
-document.getElementById('voiceModeBtn').addEventListener('click', () => {
-  if (activeRequest) { activeRequest.abort(); return; }
-  if (document.getElementById('promptInput').value.trim() || selectedAttachments.length) handleSend();
-  else startMobileDictation(true);
-});
 document.getElementById('promptInput').addEventListener('input', () => { updateComposerAction(); slashSelection=0; renderSlashMenu(); });
 document.getElementById('promptInput').addEventListener('keydown', e => {const menu=document.getElementById('slashCommandMenu');if(menu.hidden)return;const items=[...menu.querySelectorAll('.slash-command-item')];if(e.key==='ArrowDown'){e.preventDefault();slashSelection=(slashSelection+1)%items.length;renderSlashMenu();}else if(e.key==='ArrowUp'){e.preventDefault();slashSelection=(slashSelection-1+items.length)%items.length;renderSlashMenu();}else if(e.key==='Tab'&&items.length){e.preventDefault();items[slashSelection]?.click();}else if(e.key==='Escape'){menu.hidden=true;}});
 document.addEventListener('click',e=>{if(!e.target.closest('#slashCommandMenu')&&!e.target.closest('#promptInput')){const m=document.getElementById('slashCommandMenu');if(m)m.hidden=true;}});
@@ -2274,7 +2240,7 @@ document.getElementById('newChatBtn').addEventListener('click', createNewThread)
 document.getElementById('mobileNewChatBtn').addEventListener('click', createNewThread);
 document.getElementById('topProfileBtn').addEventListener('click', () => document.getElementById('openSettingsBtn').click());
 document.getElementById('sendBtn').addEventListener('click', handleSend);
-document.getElementById('mobileMicBtn').addEventListener('click', () => startMobileDictation(false));
+
 document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventListener('click',()=>{
  currentComposerMode=button.dataset.mode||'chat';
  document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
