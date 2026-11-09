@@ -44,7 +44,7 @@ html,body{background:var(--bg-canvas)!important;color:var(--text-primary)!import
 
 
 /* ULTRON One home: final overrides over legacy workspace styling */
-:root{--bg-canvas:#000;--bg-surface:#111;--bg-elevated:#1c1c1e;--bg-input:#1a1a1a;--text-primary:#f7f7f8;--text-secondary:#a1a1a8;--text-muted:#73737b;--border-hairline:rgba(255,255,255,.09);--accent-terracotta:#ff6848;--accent-hover:#ff8064;--user-bubble:#202024;--font-serif:'Newsreader',Georgia,serif;--font-sans:'Plus Jakarta Sans',-apple-system,sans-serif}
+:root{--bg-canvas:#000;--bg-surface:#111;--bg-elevated:#1c1c1e;--bg-input:#1a1a1a;--text-primary:#f7f7f8;--text-secondary:#a1a1a8;--text-muted:#73737b;--border-hairline:rgba(255,255,255,.09);--accent-terracotta:#ff6848;--accent-hover:#ff8064;--user-bubble:#202024;--font-serif:"Newsreader",Georgia,serif;--font-sans:"Plus Jakarta Sans",-apple-system,sans-serif}
 [data-theme="light"]{--bg-canvas:#f7f7f8;--bg-surface:#fff;--bg-elevated:#ececf0;--bg-input:#fff;--text-primary:#151519;--text-secondary:#666670;--text-muted:#85858e;--border-hairline:rgba(20,20,28,.11);--accent-terracotta:#ed6245;--accent-hover:#d94f34;--user-bubble:#ededf1}
 html,body,.app-shell,.main-view,.chat-scroll,.topbar{background:var(--bg-canvas)!important;color:var(--text-primary)!important}
 body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(73,67,153,.23),transparent 72%)!important}
@@ -90,11 +90,11 @@ body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(73,67,153
 [data-theme="light"] .attach-btn{background:#ededf0!important;color:#333!important}
 .attachment-preview{position:absolute!important;left:16px!important;right:16px!important;bottom:calc(100% + 9px)!important;margin:0!important}
 .composer-actions{display:flex!important;flex:0 0 auto!important;align-items:center!important;gap:8px!important}
-#mobileMicBtn.mobile-mic-btn{display:inline-flex!important;width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:50%!important;background:transparent!important;color:#aaa!important}
-#mobileMicBtn svg{width:20px!important;height:20px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.7!important;stroke-linecap:round!important;stroke-linejoin:round!important}
-#voiceModeBtn.voice-mode-btn{display:inline-flex!important;width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:50%!important;background:linear-gradient(145deg,#ff855f,#f14b35)!important;color:#fff!important;box-shadow:0 3px 16px rgba(244,86,56,.25)!important}
-#voiceModeBtn svg{width:20px!important;height:20px!important;stroke:currentColor!important;fill:none!important}
-#sendBtn.send-btn,.composer-status{display:none!important}
+
+
+
+
+.composer-status{display:none!important}
 .slash-command-menu{bottom:calc(100% + 10px)!important}
 .msg-user{background:var(--user-bubble)!important;color:var(--text-primary)!important}.msg-assistant{color:var(--text-primary)!important}
 @media(max-width:860px){
@@ -108,9 +108,9 @@ body{background-image:radial-gradient(ellipse 90% 32% at 50% 112%,rgba(73,67,153
  .composer-box{min-height:58px!important;padding:6px 7px 6px 9px!important;gap:6px!important}
  .composer-textarea{font-size:14px!important}
  .attach-btn{width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important}
- #mobileMicBtn.mobile-mic-btn{width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important}
- #voiceModeBtn.voice-mode-btn{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important}
+ 
+ 
  .mode-toggle{margin-bottom:10px!important}
 }
 @media(max-height:700px) and (max-width:860px){.hero-mark{width:44px!important;height:44px!important;margin-bottom:12px!important}.hero-mark svg{width:44px!important;height:44px!important}.hero-greeting{font-size:2rem!important;margin-bottom:10px!important}.quick-actions{margin-top:24px!important}}
-@media(max-width:370px){.topbar{padding:0 10px!important}.topbar-left{gap:6px!important}#modelSelect.model-selector{max-width:125px!important}.topbar-right{gap:4px!important}.composer-wrap{padding-left:10px!important;padding-right:10px!important}.composer-box{gap:4px!important}#mobileMicBtn.mobile-mic-btn{width:30px!important;min-width:30px!important}#voiceModeBtn.voice-mode-btn{width:38px!important;min-width:38px!important}}
+@media(max-width:370px){.topbar{padding:0 10px!important}.topbar-left{gap:6px!important}#modelSelect.model-selector{max-width:125px!important}.topbar-right{gap:4px!important}.composer-wrap{padding-left:10px!important;padding-right:10px!important}.composer-box{gap:4px!important}}\n/* Composer invariant: Send stays visible on desktop and mobile. */\n#sendBtn.send-btn{display:inline-flex!important;visibility:visible!important;opacity:1!important;flex:0 0 36px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important}\n
