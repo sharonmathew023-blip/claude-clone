@@ -13,5 +13,6 @@ assert.match(html, /window\.__ultronGoogleScriptFailed/, "blocked Google sign-in
 assert.doesNotMatch(html, /id="mobileMicBtn"|id="voiceModeBtn"|startMobileDictation|SpeechRecognition/, "voice input controls and browser recognition are removed");
 assert.match(html, /@media\(max-width:860px\)\{#sendBtn\.send-btn\{display:inline-flex!important\}/, "send button remains visible on mobile");
 assert.match(html, /#sendBtn\.send-btn\{display:inline-flex!important;align-items:center!important;justify-content:center!important;visibility:visible!important;opacity:1!important\}/, "final composer styles cannot hide the send button");
+assert.doesNotMatch(html, /syncMobileComposerButton|legacySend\.style\.setProperty/, "no mobile resize handler may force-hide the Send button");
 scripts.forEach((script, index) => new vm.Script(script, { filename: `index-inline-${index}.js` }));
 console.log(`inline script syntax: ${scripts.length} script(s) passed`);
