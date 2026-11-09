@@ -24,6 +24,8 @@ const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const MAX_BODY_BYTES = 12_000_000;
+const MAX_PAGE_BYTES = 2_000_000;
+const MODEL_LIST_CACHE_MS = 300_000;
 const MAX_MESSAGES = 200;
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const MODEL_GONE_STATUS = 404; // retired model: move on to the next one, do not retry it
@@ -37,6 +39,7 @@ const COOLDOWN_MS = { rateLimited: 60_000, overloaded: 30_000, timeout: 20_000, 
 const COOLDOWN_MIN_MS = 5_000;
 const COOLDOWN_MAX_MS = 600_000;
 const COOLDOWN_KV_KEY = "model-cooldowns:v1";
+let modelListCache = { expiresAt: 0, data: null };
 const COOLDOWN_CACHE_MS = 3_000; // re-read the KV copy at most this often
 const TOTAL_BUDGET_MS = 45_000; // keep the answer inside the browser's 60s request timeout
 // Skills may only narrow the Worker's read-only tool access. Nothing in a
@@ -64,7 +67,14 @@ export default {
       if (!auth.identity) return fail(auth.status, auth.message);
       if (!isUltronOwner(auth.identity, env)) return fail(env.ULTRON_OWNER_EMAIL ? 403 : 503, env.ULTRON_OWNER_EMAIL ? "Website inspection is restricted to the ULTRON owner account." : "Owner access is not configured. Add the ULTRON_OWNER_EMAIL Worker secret.");
       try {
-        const input = await request.json().catch(() => ({}));
+        let input = {};
+        try {
+          const rawInput = await readStreamTextLimited(request.body, 16_384);
+          if (rawInput) input = JSON.parse(rawInput);
+        } catch (error) {
+          if (error && error.code === "PAYLOAD_TOO_LARGE") return fail(413, "Website inspection request is too large.");
+          return fail(400, "Website inspection request must be valid JSON.");
+        }
         let target;
         try { target = new URL(String(input.url || "")); } catch { return fail(400, "Enter a valid public website URL."); }
         if (target.protocol !== "https:" || !isPublicWebHost(target.hostname)) return fail(400, "Only public HTTPS websites can be opened.");
@@ -84,8 +94,12 @@ export default {
         if (!response || !response.ok) return fail(response ? response.status : 502, "Could not open that website.");
         const type = response.headers.get("Content-Type") || "";
         if (!/(text\/html|text\/plain)/i.test(type)) return fail(415, "That URL did not return an HTML or text page.");
-        const source = await response.text();
-        if (source.length > 2_000_000) return fail(413, "That page is too large to inspect.");
+        let source;
+        try { source = await readStreamTextLimited(response.body, MAX_PAGE_BYTES); }
+        catch (error) {
+          if (error && error.code === "PAYLOAD_TOO_LARGE") return fail(413, "That page is too large to inspect.");
+          throw error;
+        }
         const page = extractPageText(source, type);
         return reply({ ok: true, url: target.toString(), title: page.title, content: page.content.slice(0, 18000), html: page.html.slice(0, 30000) });
       } catch (error) {
@@ -140,6 +154,9 @@ export default {
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
+      if (modelListCache.data && modelListCache.expiresAt > Date.now()) {
+        return reply(modelListCache.data, 200, { "Cache-Control": "public, max-age=300" });
+      }
       let ids = buildModelChain(String(env.DEFAULT_MODEL || DEFAULT_MODEL), env);
       if (env.GEMINI_API_KEY) {
         try { // ask Google which models your key can really use right now
@@ -153,7 +170,9 @@ export default {
           }
         } catch { /* keep the static list */ }
       }
-      return reply({ object: "list", data: [...new Set(ids)].map((id) => ({ id, object: "model" })) });
+      const data = { object: "list", data: [...new Set(ids)].map((id) => ({ id, object: "model" })) };
+      modelListCache = { data, expiresAt: Date.now() + MODEL_LIST_CACHE_MS };
+      return reply(data, 200, { "Cache-Control": "public, max-age=300" });
     }
 
     if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
@@ -190,8 +209,11 @@ export default {
 
     if (Number(request.headers.get("Content-Length") || 0) > MAX_BODY_BYTES) return fail(413, "Request is too large.");
     let raw;
-    try { raw = await request.text(); } catch { return fail(400, "Could not read the request body."); }
-    if (raw.length > MAX_BODY_BYTES) return fail(413, "Request is too large.");
+    try { raw = await readStreamTextLimited(request.body, MAX_BODY_BYTES); }
+    catch (error) {
+      if (error && error.code === "PAYLOAD_TOO_LARGE") return fail(413, "Request is too large.");
+      return fail(400, "Could not read the request body.");
+    }
     let input;
     try { input = JSON.parse(raw); } catch { return fail(400, "Request body must be valid JSON."); }
 
@@ -548,7 +570,9 @@ async function readPublicPageForAgent(value) {
   if(!response || !response.ok) throw new Error("Could not open that website.");
   const type=response.headers.get("Content-Type") || "";
   if(!/(text\/html|text\/plain)/i.test(type)) throw new Error("That URL did not return an HTML or text page.");
-  const source=await response.text(); if(source.length>2000000) throw new Error("That page is too large to inspect.");
+  let source;
+  try { source=await readStreamTextLimited(response.body,MAX_PAGE_BYTES); }
+  catch(error) { if(error && error.code==="PAYLOAD_TOO_LARGE") throw new Error("That page is too large to inspect."); throw error; }
   const page=extractPageText(source,type);
   return { url:target.toString(), title:page.title, content:page.content.slice(0,14000) };
 }
@@ -560,6 +584,31 @@ function toStaticOpenAIStream(text, model) {
   ];
   const body=frames.map(frame=>"data: "+JSON.stringify(frame)+"\n\n").join("")+"data: [DONE]\n\n";
   return new ReadableStream({start(controller){controller.enqueue(encoder.encode(body));controller.close();}});
+}
+
+async function readStreamTextLimited(stream, maxBytes) {
+  if (!stream) return "";
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        const error = new Error("Response exceeded the allowed size.");
+        error.code = "PAYLOAD_TOO_LARGE";
+        try { await reader.cancel(error); } catch {}
+        throw error;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
 }
 
 function isPublicWebHost(hostname) {
