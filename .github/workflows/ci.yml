@@ -24,3 +24,7 @@ jobs:
         run: node tests/skill-engine.test.mjs
       - name: Run security and fallback tests
         run: node tests/security.test.mjs
+      - name: Run Worker fallback and streaming tests
+        run: node --test worker.test.mjs
+      - name: Run composer regression tests
+        run: node --test tests/composer-regression.test.mjs
