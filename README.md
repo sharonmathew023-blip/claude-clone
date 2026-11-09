@@ -1,81 +1,74 @@
 # ULTRON
 
-A lightweight, local-first AI chat workspace. The interface runs in your browser; you connect your own model provider.
+A browser-based AI workspace with a responsive chat interface, conversation history, skills, HTML artifact previews, and a Cloudflare Worker backend.
+
+**Live app:** https://sharonmathew023-blip.github.io/ultron/
 
 ## Features
 
-- Responsive desktop and mobile layout
-- Local conversation history using browser `localStorage`
-- Search, create, and delete conversations
-- Light and dark themes
-- Ollama local model streaming
-- OpenAI-compatible chat-completions streaming
-- Session-only API key handling (not persisted)
-- System prompt settings
-- Skill Engine 2.0: automatic detection, `/skill-name` commands, multiple concurrent skills, priority and conflict handling, per-skill tool permissions, token budgets, and community skill upload
-- Copyable code blocks
-- Sandboxed HTML artifact preview and download
-- Export conversation data as JSON
+- Responsive chat UI with desktop and mobile layouts.
+- Conversation creation, search, deletion, and local browser history.
+- Dark and light themes.
+- Streaming Gemini responses through an OpenAI-compatible endpoint.
+- Google Identity Services sign-in verified by the Worker.
+- Per-account and per-IP rate limiting.
+- Model fallback and cooldown handling.
+- Skill Engine with built-in and imported skills, prompt checks, and restricted read-only tool access.
+- Owner-gated Composio/GitHub integration.
+- HTML artifact preview, code view, and download.
+- JSON conversation export.
 
-## Run it
+## Architecture
 
-1. Install [Ollama](https://ollama.com/) if you want a local model.
-2. Pull a model, for example:
+- `index.html`, `styles.css`: application UI.
+- `skill-rules.js`, `skill-engine.js`, `builtin-skills.js`: skill parsing, validation, activation, and UI.
+- `worker.js`: Cloudflare Worker API, Google token verification, rate limiting, Gemini streaming, model fallback, and owner-only integrations.
+- `wrangler.toml`: Worker deployment and binding configuration.
+- `worker.test.mjs` and `tests/`: automated tests.
 
-   ```bash
-   ollama pull llama3.2
-   ```
+## Local development
 
-3. Start Ollama:
+Serve the repository root with a static HTTP server:
 
-   ```bash
-   ollama serve
-   ```
+```bash
+python -m http.server 8000
+```
 
-4. Serve this folder from localhost. For example, with Python:
+Open http://localhost:8000. The hosted chat backend still requires its configured Cloudflare Worker services and secrets.
 
-   ```bash
-   python -m http.server 8000
-   ```
+Run the Worker tests with Node.js 20 or newer:
 
-5. Open `http://localhost:8000` and select **Settings → Ollama**.
-6. Set the base URL to `http://localhost:11434` and model to `llama3.2`.
+```bash
+node --test worker.test.mjs
+node --test tests/*.test.mjs
+```
 
-## Browser access / CORS
+## Worker configuration
 
-The browser calls Ollama directly. If the browser blocks requests, configure Ollama's allowed origins for your local web origin, then restart Ollama. For example, set `OLLAMA_ORIGINS` to include `http://localhost:8000` (and `http://127.0.0.1:8000` if you use that address).
+Configure secrets in Cloudflare, never in committed source files:
 
-Do not expose an Ollama server directly to the public internet.
+- `GEMINI_API_KEY`
+- `GOOGLE_CLIENT_ID`
+- `ULTRON_OWNER_EMAIL` for owner-only features
+- `COMPOSIO_API_KEY` for the connected-app integration
 
-## OpenAI-compatible provider
+Configure the rate-limiter bindings and optional `ULTRON_STATE` KV namespace as described by `wrangler.toml`. Set `ALLOWED_ORIGINS` to the exact production origin when restricting browser access.
 
-Choose **OpenAI-compatible API**, enter the provider's API root (for example, `https://api.example.com/v1`), model name, and API key. The app appends `/chat/completions` unless the URL already ends with that path. Some providers may require extra headers or have CORS restrictions; this basic client cannot support every provider-specific variation.
+## Security notes
 
-The API key stays in JavaScript memory for the current page session. It is not saved to localStorage. Reloading the page clears it.
+- Keep provider keys and consumer API keys in Worker secrets.
+- The Worker verifies Google ID tokens; frontend state is not an authentication boundary.
+- Imported skills are untrusted input and must remain subject to the browser and Worker validation.
+- Connected tools are owner-gated and restricted to read-only capabilities.
+- Treat generated HTML as untrusted, even when it is rendered in a sandboxed preview.
 
-## Skill Engine 2.0
+## Limitations
 
-Skills are short Markdown files with front matter. ULTRON activates them automatically from trigger phrases, explicitly with `/skill-name`, or several at once (`/research /code-review …`). Injected context is capped by a token budget, and each skill can use only the read-only tools you approve for it.
+- Conversation history is stored in the current browser and does not automatically sync across devices.
+- Clearing browser site data removes local conversations.
+- Demo mode is a UI preview, not an offline AI model.
+- Availability and model names depend on the configured Google AI account and Worker settings.
 
-Uploaded skills are treated as untrusted instructions: the engine scans them for secret extraction, authentication overrides, arbitrary code execution, and prompt injection, and the Cloudflare Worker re-checks every injected skill block. Blocked skills cannot be enabled or run. See [SKILLS.md](SKILLS.md) for the format, permissions, and security model.
+## License
 
-## Important limitations
-
-- Demo mode is an interface preview, not an AI model. It does not generate intelligent answers offline.
-- Conversations are stored in this browser only. They do not sync between devices.
-- Clearing site data removes saved conversations.
-- HTML artifacts run in a sandboxed iframe with scripts enabled but without same-origin access. Treat generated code as untrusted.
-- The Markdown renderer is intentionally lightweight and does not implement the full Markdown specification.
-- This is a static front-end. There is no server-side account system, database, authentication, or proxy.
-
-## Files
-
-- `index.html` — application structure and chat pipeline
-- `styles.css`, `skill-engine.css` — responsive interface, themes, skills UI
-- `app.js` — legacy static demo client (the Worker build uses the inline script)
-- `skill-rules.js` — shared skill parser, security scanner, detection, budgets, tool rules
-- `skill-engine.js` — browser skill registry, settings UI, activation, import/export
-- `builtin-skills.js` — bundled starter skills
-- `worker.js` — Gemini/Composio proxy with server-side skill enforcement
-- `SKILLS.md` — skill format and security model
-- `tests/skill-engine.test.mjs` — dependency-free self-check
+No license is currently specified. All rights remain with the repository owner unless a license is added.
