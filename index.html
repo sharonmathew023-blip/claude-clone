@@ -946,7 +946,7 @@ svg.ui-icon{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;s
 <div class="chat-container" id="chatContainer"></div>
 </div>
 <div class="composer-wrap">
-<div class="mode-toggle" role="tablist" aria-label="Conversation mode"><button class="mode-toggle-btn active" type="button" data-mode="chat" role="tab" aria-selected="true">Chat</button><button class="mode-toggle-btn" type="button" data-mode="task" role="tab" aria-selected="false">Task</button></div>
+<div class="mode-toggle" role="tablist" aria-label="Conversation mode"><button class="mode-toggle-btn active" type="button" data-mode="chat" role="tab" aria-selected="true">Chat</button><button class="mode-toggle-btn" type="button" data-mode="research" role="tab" aria-selected="false">Research</button><button class="mode-toggle-btn" type="button" data-mode="agent" role="tab" aria-selected="false">Agent</button><button class="mode-toggle-btn" type="button" data-mode="studio" role="tab" aria-selected="false">Studio</button><button class="mode-toggle-btn" type="button" data-mode="developer" role="tab" aria-selected="false">Developer</button></div>
 <div id="skillStrip" class="skill-strip" aria-live="polite" hidden></div>
 <div class="composer-box">
 <div class="attachment-row"><button class="footer-btn attach-btn" type="button" id="attachFilesBtn" aria-label="Attach files" title="Attach files"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><input id="attachmentInput" type="file" multiple accept="image/*,application/pdf,text/*,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log" hidden></div>
@@ -1974,7 +1974,7 @@ const model = models[index];
 onStatus(index === 0 ? `Connecting to ${model}…` : `Switching to ${model}…`);
 for (let attempt = 0; ; attempt++) {
 try {
-return await requestOnce(endpoint, { model, stream: true, messages, ...(webSearchEnabled ? { web_search: true } : {}), ...(toolSessionId !== null && toolSessionId !== undefined ? { composioSessionId: typeof toolSessionId === 'string' ? toolSessionId : '', enableTools: true } : {}), ...(Array.isArray(skillManifest) && skillManifest.length ? { skills: skillManifest } : {}) }, signal, emitChunk);
+return await requestOnce(endpoint, { model, stream: true, messages, ...(webSearchEnabled ? { web_search: true } : {}), ...(currentComposerMode !== 'chat' ? { mode: currentComposerMode } : {}), ...(toolSessionId !== null && toolSessionId !== undefined ? { composioSessionId: typeof toolSessionId === 'string' ? toolSessionId : '', enableTools: true } : {}), ...(Array.isArray(skillManifest) && skillManifest.length ? { skills: skillManifest } : {}) }, signal, emitChunk);
 } catch (error) {
 if (error.stopped || emittedAnyText) throw error;
 lastError = error;
@@ -2085,7 +2085,7 @@ if (prompt.startsWith('/')) {
     prompt = parsed.rest || 'Use the selected skills to help me. Follow their instructions for this task.';
   }
 }
-if(currentComposerMode==='task'&&!prompt.startsWith('/'))prompt='Handle this as a task: plan the steps, complete what you can, and give me a clear result.\n\n'+prompt;
+if(currentComposerMode==='agent'&&!prompt.startsWith('/'))prompt='Handle this as a task: plan the steps, complete what you can, and give me a clear result.\n\n'+prompt;
 let thread = state.threads.find(t => t.id === state.activeThreadId);
 if (!thread) {
 createNewThread();
@@ -2265,7 +2265,7 @@ document.getElementById('sendBtn').addEventListener('click', handleSend);
 document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventListener('click',()=>{
  currentComposerMode=button.dataset.mode||'chat';
  document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
- document.getElementById('promptInput').placeholder=currentComposerMode==='task'?'Describe a task for ULTRON...':'Ask ULTRON...';
+ document.getElementById('promptInput').placeholder=({research:'Research a topic with sources...',agent:'Describe a task for ULTRON...',studio:'Describe what to build...',developer:'Ask about code, GitHub or deploys...'})[currentComposerMode]||'Ask ULTRON...';
 }));
 const promptEl = document.getElementById('promptInput');
 promptEl.addEventListener('keydown', e => {

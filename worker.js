@@ -18,6 +18,7 @@
 
 // Skill Engine 2.0 shares its parser, scanner, and tool catalog with the browser.
 import "./skill-rules.js";
+import { applyMode } from "./modes.js";
 
 const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a time
 const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
@@ -228,6 +229,9 @@ export default {
     const skillAccess = readSkillManifest(input);
     const skillCheck = guardSkillPrompt(input.messages, skillAccess);
     if (!skillCheck.ok) return fail(400, skillCheck.message);
+
+    // Mode prompts come from the Worker, never from the browser. Added after the skill check on purpose.
+    applyMode(input);
 
     const model = String(input.model || env.DEFAULT_MODEL || DEFAULT_MODEL).replace(/^models\//, "");
     if (!MODEL_RE.test(model)) return fail(400, "Invalid model name.");
