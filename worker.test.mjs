@@ -406,6 +406,21 @@ test("Groq provider fallback sends compatible text chat and returns its stream",
   assert.equal(captured.body.max_tokens, 120);
 });
 
+test("Groq fallback defaults to openai/gpt-oss-120b and accepts ids with a slash", async () => {
+  let sentModel;
+  globalThis.fetch = async (url, init) => {
+    sentModel = JSON.parse(init.body).model;
+    return new Response("data: [DONE]\\n\\n", { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  };
+  const result = await W.callGroqFallback({ messages: [{ role: "user", content: "Hello" }] }, { GROQ_API_KEY: "gsk-test" });
+  assert.equal(sentModel, "openai/gpt-oss-120b");
+  assert.equal(result.model, "openai/gpt-oss-120b");
+  const custom = await W.callGroqFallback({ messages: [{ role: "user", content: "Hi" }] }, { GROQ_API_KEY: "gsk-test", GROQ_MODEL: "qwen/qwen3.6-27b" });
+  assert.equal(custom.model, "qwen/qwen3.6-27b");
+  const bad = await W.callGroqFallback({ messages: [{ role: "user", content: "Hi" }] }, { GROQ_API_KEY: "gsk-test", GROQ_MODEL: "../etc/passwd" });
+  assert.equal(bad.message, "GROQ_MODEL is invalid.");
+});
+
 test("Groq provider fallback skips image requests instead of dropping attachments", async () => {
   let called = false;
   globalThis.fetch = async () => { called = true; throw new Error("must not call"); };
