@@ -252,6 +252,25 @@ export default {
     const chain = buildModelChain(model, env);
     const result = await callGemini(chain, JSON.stringify(geminiBody), env.GEMINI_API_KEY, makeHealth(env, ctx));
     if (result.error) {
+      // Use the independent provider only for upstream availability failures.
+      // Invalid requests and policy blocks should remain visible instead of being
+      // silently sent to a different service.
+      if (env.GROQ_API_KEY && [429, 500, 502, 503, 504].includes(Number(result.error.status))) {
+        const backup = await callGroqFallback(input, env);
+        if (backup.res) {
+          return new Response(backup.res.body, {
+            headers: {
+              ...cors.headers,
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              "X-Accel-Buffering": "no",
+              "X-ULTRON-Model": "groq/" + backup.model,
+              "X-ULTRON-Fallback": "provider",
+            },
+          });
+        }
+        console.warn("[ultron] Groq backup failed: " + redact(backup.message || "unknown error"));
+      }
       const extra = result.error.retryAfter ? { "Retry-After": result.error.retryAfter } : undefined;
       return fail(result.error.status, result.error.message, extra);
     }
@@ -880,12 +899,14 @@ async function callModel(model, body, apiKey, timeoutMs = HEADERS_TIMEOUT_MS) {
       clearTimeout(timer);
       const text = await res.text().catch(() => "");
       const retryAfterMs = retryHintMs(res.headers.get("Retry-After"), text);
+      const regionalRoutingIssue = res.status === 400 && /location is not supported/i.test(text);
       return {
         status: res.status,
         message: extractMessage(text) || `Gemini API returned HTTP ${res.status}.`,
         retryAfter: retryAfterMs ? String(Math.ceil(retryAfterMs / 1000)) : undefined,
         retryAfterMs,
         keyProblem: isKeyProblem(res.status, text),
+        regionalRoutingIssue,
       };
     }
     const primed = await primeStream(res); // the first event must arrive before the timer fires
@@ -897,6 +918,41 @@ async function callModel(model, body, apiKey, timeoutMs = HEADERS_TIMEOUT_MS) {
     return err && err.name === "AbortError"
       ? { status: 504, message: "Gemini did not respond in time.", timedOut: true }
       : { status: 502, message: "Could not reach the Gemini API." };
+  }
+}
+
+// Independent OpenAI-compatible backup. Configure GROQ_API_KEY as a Worker
+// secret; GROQ_MODEL is optional and defaults to a currently supported text model.
+// This path deliberately skips image/PDF and tool requests rather than silently
+// dropping attachments or pretending provider-specific tools are portable.
+async function callGroqFallback(input, env) {
+  const messages = [];
+  for (const message of (Array.isArray(input.messages) ? input.messages : [])) {
+    if (!message || !["system", "user", "assistant"].includes(message.role)) continue;
+    if (Array.isArray(message.content) && message.content.some(part => part && part.type === "image_url")) {
+      return { message: "Groq backup skipped because this request contains an image or document attachment." };
+    }
+    messages.push({ role: message.role, content: textOf(message.content) });
+  }
+  if (!messages.length) return { message: "Groq backup has no compatible text messages." };
+  const model = String(env.GROQ_MODEL || "llama-3.3-70b-versatile").trim();
+  if (!MODEL_RE.test(model)) return { message: "GROQ_MODEL is invalid." };
+  const body = { model, messages, stream: true };
+  if (typeof input.temperature === "number") body.temperature = input.temperature;
+  if (typeof input.top_p === "number") body.top_p = input.top_p;
+  if (Number.isInteger(input.max_tokens) && input.max_tokens > 0) body.max_tokens = input.max_tokens;
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.GROQ_API_KEY },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.ok && response.body) return { res: response, model };
+    const raw = await response.text().catch(() => "");
+    return { status: response.status, message: extractMessage(raw) || "Groq returned HTTP " + response.status + "." };
+  } catch (error) {
+    return { status: 502, message: error && error.name === "TimeoutError" ? "Groq backup timed out." : "Could not reach the Groq backup." };
   }
 }
 
@@ -928,7 +984,7 @@ async function callGemini(chain, body, apiKey, health) {
         return { error: keyError() };
       }
       // A bad request will not be fixed by trying another model either.
-      if (!RETRY_STATUS.has(outcome.status) && outcome.status !== MODEL_GONE_STATUS) return { error: outcome };
+      if (!RETRY_STATUS.has(outcome.status) && outcome.status !== MODEL_GONE_STATUS && !outcome.regionalRoutingIssue) return { error: outcome };
 
       // Each model has its own quota: a rate limit is better spent on the next model.
       if (outcome.status === 429) { await health.mark(model, outcome.retryAfterMs || COOLDOWN_MS.rateLimited, "rate-limited"); break; }
