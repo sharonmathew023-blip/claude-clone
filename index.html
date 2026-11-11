@@ -961,6 +961,7 @@ svg.ui-icon{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;s
 <div style="display:flex; gap:6px;">
 <button class="nav-tab active" id="tabPreviewBtn">Preview</button>
 <button class="nav-tab" id="tabCodeBtn">Code</button>
+<button class="nav-tab" id="openArtifactTabBtn" type="button" title="Open this artifact in a new tab">↗ New tab</button>
 <button class="icon-btn" id="closeArtifactBtn" aria-label="Close preview" title="Close"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
 </div>
 </div>
@@ -1673,6 +1674,23 @@ document.getElementById('artifactTitle').textContent = state.activeArtifact.titl
 document.getElementById('artifactFrame').srcdoc = state.activeArtifact.code;
 document.getElementById('artifactCode').textContent = state.activeArtifact.code;
 }
+
+function openArtifactInNewTab() {
+  const code = state.activeArtifact && state.activeArtifact.code;
+  if (!code) return;
+  const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Keep the object URL alive long enough for the new tab to load.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 function createNewThread() {
 const id = 'thread-' + Date.now();
 state.threads.unshift({
@@ -2303,6 +2321,7 @@ if (pane.classList.contains('open')) pane.classList.remove('open'); else openArt
 document.getElementById('closeArtifactBtn').addEventListener('click', () => {
 document.getElementById('artifactPane').classList.remove('open');
 });
+document.getElementById('openArtifactTabBtn').addEventListener('click', openArtifactInNewTab);
 document.getElementById('tabPreviewBtn').addEventListener('click', () => {
 document.getElementById('artifactFrame').style.display = 'block';
 document.getElementById('artifactCode').style.display = 'none';
