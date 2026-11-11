@@ -24,6 +24,10 @@ const DEFAULT_MODEL = "gemini-3.5-flash"; // 3.8-flash answers 503 for days at a
 const DEFAULT_FALLBACKS = "gemini-3.6-flash,gemini-flash-lite-latest";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+// Groq model ids can contain a slash (openai/gpt-oss-120b). Gemini ids cannot, so they keep MODEL_RE.
+const GROQ_MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._\/-]{0,63}$/;
+// llama-3.3-70b-versatile was retired on Groq in Aug 2026.
+const GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b";
 const MAX_BODY_BYTES = 12_000_000;
 const MAX_PAGE_BYTES = 2_000_000;
 const MODEL_LIST_CACHE_MS = 300_000;
@@ -945,8 +949,8 @@ async function callGroqFallback(input, env) {
     messages.push({ role: message.role, content: textOf(message.content) });
   }
   if (!messages.length) return { message: "Groq backup has no compatible text messages." };
-  const model = String(env.GROQ_MODEL || "llama-3.3-70b-versatile").trim();
-  if (!MODEL_RE.test(model)) return { message: "GROQ_MODEL is invalid." };
+  const model = String(env.GROQ_MODEL || GROQ_DEFAULT_MODEL).trim();
+  if (!GROQ_MODEL_RE.test(model)) return { message: "GROQ_MODEL is invalid." };
   const body = { model, messages, stream: true };
   if (typeof input.temperature === "number") body.temperature = input.temperature;
   if (typeof input.top_p === "number") body.top_p = input.top_p;
