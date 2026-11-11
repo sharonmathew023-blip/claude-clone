@@ -150,7 +150,7 @@ export default {
     }
 
     if (request.method === "GET" && (path === "" || path === "/health")) {
-      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), cooldownStore: env.ULTRON_STATE ? "kv" : "memory", skillEngine: "2.0.0", message: "OpenClaude Gemini proxy is running. Use POST /chat/completions." });
+      return reply({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY), hasGroqKey: Boolean(env.GROQ_API_KEY), cooldownStore: env.ULTRON_STATE ? "kv" : "memory", skillEngine: "2.0.0", message: "OpenClaude AI proxy is running. Use POST /chat/completions." });
     }
 
     if (request.method === "GET" && path.endsWith("/models")) {
@@ -253,9 +253,13 @@ export default {
     const result = await callGemini(chain, JSON.stringify(geminiBody), env.GEMINI_API_KEY, makeHealth(env, ctx));
     if (result.error) {
       // Use the independent provider only for upstream availability failures.
-      // Invalid requests and policy blocks should remain visible instead of being
-      // silently sent to a different service.
-      if (env.GROQ_API_KEY && [429, 500, 502, 503, 504].includes(Number(result.error.status))) {
+      // callGemini normalizes exhausted regional-routing 400s into a 503 busy
+      // error, so those failures also reach this provider fallback.
+      if ([429, 500, 502, 503, 504].includes(Number(result.error.status))) {
+        if (!env.GROQ_API_KEY) {
+          console.error("[ultron] Gemini is unavailable and GROQ_API_KEY is not configured.");
+          return fail(503, "Gemini is unavailable and the Groq backup is not configured on this Worker. Add GROQ_API_KEY under the Production environment's Variables and Secrets, then redeploy.");
+        }
         const backup = await callGroqFallback(input, env);
         if (backup.res) {
           return new Response(backup.res.body, {
@@ -269,7 +273,9 @@ export default {
             },
           });
         }
-        console.warn("[ultron] Groq backup failed: " + redact(backup.message || "unknown error"));
+        const backupMessage = redact(backup.message || "unknown error").slice(0, 240);
+        console.warn("[ultron] Groq backup failed: " + backupMessage);
+        return fail(502, "Gemini is unavailable and the Groq backup failed: " + backupMessage);
       }
       const extra = result.error.retryAfter ? { "Retry-After": result.error.retryAfter } : undefined;
       return fail(result.error.status, result.error.message, extra);
