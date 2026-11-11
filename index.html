@@ -470,6 +470,7 @@ body{letter-spacing:-.012em}.sidebar{box-shadow:10px 0 34px rgba(28,39,70,.07)}.
 .msg-row{gap:8px}.msg-user{border-radius:19px 19px 5px 19px;padding:13px 17px}.msg-assistant{font-family:var(--font-sans);font-size:1rem;line-height:1.75}
 .msg-model{margin-left:4px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 .72rem var(--font-sans);color:var(--text-secondary)}
 .msg-actions{display:flex;gap:6px;align-items:center;opacity:.78}.msg-action-btn{border:1px solid var(--border-hairline);background:var(--bg-surface);color:var(--text-secondary);border-radius:8px;padding:5px 9px;font:500 .72rem var(--font-sans);cursor:pointer}.msg-action-btn:hover{color:var(--text-primary);border-color:var(--accent-terracotta);background:var(--bg-elevated)}
+.msg-retry-btn{color:var(--accent-terracotta);border-color:color-mix(in srgb,var(--accent-terracotta) 42%,var(--border-hairline))}.msg-retry-btn:disabled{opacity:.45;cursor:not-allowed}
 .msg-assistant pre{position:relative;background:#171d2b;color:#e6eaf5;border:1px solid #343e55;border-radius:14px;padding:42px 16px 16px;margin:15px 0;overflow:auto;line-height:1.65;tab-size:2}.msg-assistant pre code{color:inherit;font:.83rem/1.65 var(--font-mono);white-space:pre}.code-toolbar{position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:rgba(255,255,255,.055);border-bottom:1px solid rgba(255,255,255,.1);color:#aeb9d3;font:.68rem var(--font-mono)}.code-copy-btn{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#e6eaf5;border-radius:6px;padding:3px 8px;font:.68rem var(--font-sans);cursor:pointer}.msg-assistant code:not(pre code){font:.84em var(--font-mono);background:var(--bg-elevated);border:1px solid var(--border-hairline);padding:2px 5px;border-radius:6px}
 .composer-wrap{padding:14px 20px max(18px,env(safe-area-inset-bottom));border-top:0}.composer-box{border-radius:19px;padding:13px 15px 11px;border-color:var(--border-hairline);box-shadow:0 10px 32px rgba(25,35,65,.09)}.composer-box:focus-within{border-color:var(--accent-terracotta);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-terracotta) 13%,transparent),0 12px 34px rgba(25,35,65,.12)}
 .send-btn{border-radius:11px;min-height:38px;padding:9px 17px;color:#fff;background:#667eea;font-weight:700;box-shadow:0 4px 14px rgba(102,126,234,.2)}[data-theme="dark"] .send-btn{color:#171a24;background:#a7b4ff}.send-btn:hover{background:var(--accent-hover)}
@@ -1541,6 +1542,44 @@ function openSidebarThreadMenu(thread,x,y){
   menu.style.top=Math.max(12,Math.min(y||80,window.innerHeight-170))+'px';
   menu.hidden=false;
 }
+function retryFailedMessage(messageIndex) {
+  if (activeRequest) return;
+  const thread = currentThread();
+  if (!thread || messageIndex !== thread.messages.length - 1) return;
+  const failed = thread.messages[messageIndex];
+  if (!failed || !failed.isError) return;
+  let userIndex = messageIndex - 1;
+  while (userIndex >= 0 && thread.messages[userIndex].role !== 'user') userIndex--;
+  if (userIndex < 0) return;
+  const savedAttachments = retryPayloads.get(failed);
+  if (savedAttachments) {
+    selectedAttachments = savedAttachments.slice();
+  } else if (Array.isArray(failed.retryAttachmentNames) && failed.retryAttachmentNames.length && !selectedAttachments.length) {
+    document.getElementById('promptInput').value = failed.retryInput || thread.messages[userIndex].content || '';
+    updateComposerAction();
+    document.getElementById('promptInput').focus();
+    toast('Reattach the original files, then tap Retry again.');
+    return;
+  }
+  const input = document.getElementById('promptInput');
+  input.value = failed.retryInput ?? thread.messages[userIndex].content ?? '';
+  if (failed.retryMode) {
+    currentComposerMode = failed.retryMode;
+    document.querySelectorAll('.mode-toggle-btn').forEach(button => {
+      const active = (button.dataset.mode || 'chat') === currentComposerMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+  thread.messages.splice(userIndex);
+  saveState();
+  renderSidebar();
+  renderChat();
+  renderAttachmentPreview();
+  updateComposerAction();
+  handleSend();
+}
+
 function renderChat() {
 const container = document.getElementById('chatContainer');
 const thread = state.threads.find(t => t.id === state.activeThreadId);
@@ -1560,7 +1599,7 @@ container.querySelectorAll('.quick-action').forEach(action => action.addEventLis
 const readout=document.getElementById('engineReadout');if(readout){const raw=(document.getElementById('engineStatus')||{}).textContent||'';const sel=document.getElementById('modelSelect');const offline=!!sel&&sel.value==='offline-synth';readout.dataset.state=(!offline&&/ready/i.test(raw))?'ready':'idle';readout.querySelector('.engine-state').textContent=offline?'Offline sandbox':(raw.replace(/^Engine:\s*/,'')||'Worker status unknown');const m=(document.getElementById('modelInput')||{}).value||'gemini-3.5-flash';readout.querySelector('.engine-chain').textContent=offline?'':[m,'gemini-3.6-flash','gemini-flash-lite-latest'].join(' > ');}
 return;
 }
-thread.messages.forEach(m => {
+thread.messages.forEach((m, messageIndex) => {
 const row = document.createElement('div');
 row.className = 'msg-row';
 if (m.role === 'user') {
@@ -1586,6 +1625,16 @@ copyButton.addEventListener('click', async () => {
   setTimeout(() => { copyButton.textContent = 'Copy'; }, 1400);
 });
 actions.appendChild(copyButton);
+if (m.role !== 'user' && m.isError) {
+  const retryButton = document.createElement('button');
+  retryButton.className = 'msg-action-btn msg-retry-btn';
+  retryButton.type = 'button';
+  retryButton.textContent = '↻ Retry';
+  retryButton.title = 'Retry this failed response';
+  retryButton.disabled = activeRequest !== null || messageIndex !== thread.messages.length - 1;
+  retryButton.addEventListener('click', () => retryFailedMessage(messageIndex));
+  actions.appendChild(retryButton);
+}
 if (m.role !== 'user' && !m.isError && typeof m.model === 'string' && m.model) {
   const modelTag = document.createElement('span');
   modelTag.className = 'msg-model';
@@ -1836,6 +1885,8 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const NETWORK_RETRIES = 2;
 const MODEL_FALLBACKS = ['gemini-3.6-flash', 'gemini-flash-lite-latest'];
 let activeRequest = null;
+// Keep original attachment payloads in memory for one-tap retries during the current session.
+const retryPayloads = new WeakMap();
 function parseRetryAfter(value) {
 if (!value) return null;
 const secs = Number(value);
@@ -2043,6 +2094,8 @@ if (!getGoogleCredential()) { showGoogleLogin('Sign in with Google before sendin
 const input = document.getElementById('promptInput');
 const sendBtn = document.getElementById('sendBtn');
 let prompt = input.value.trim();
+const retryInput = prompt;
+const retryMode = currentComposerMode;
 const attachments = selectedAttachments.slice();
 if (!prompt && !attachments.length) return;
 let explicitSkills = [];
@@ -2217,13 +2270,22 @@ return;
 }
 const answeredBy = !isError && model === 'cloudflare-worker' ? lastReplyModel : '';
 const wantedModel = (state.model || '').trim() || 'gemini-3.5-flash';
+let finalAssistantMessage;
 if (streamingAssistant) {
 streamingAssistant.content = replyText;
 streamingAssistant.hasArtifact = generatedArtifact;
 streamingAssistant.isError = isError;
 if (answeredBy) { streamingAssistant.model = answeredBy; streamingAssistant.modelBackup = answeredBy !== wantedModel; } else { delete streamingAssistant.model; delete streamingAssistant.modelBackup; }
+finalAssistantMessage = streamingAssistant;
 } else {
-thread.messages.push({ role: 'assistant', content: replyText, hasArtifact: generatedArtifact, isError, ...(answeredBy ? { model: answeredBy, modelBackup: answeredBy !== wantedModel } : {}) });
+finalAssistantMessage = { role: 'assistant', content: replyText, hasArtifact: generatedArtifact, isError, ...(answeredBy ? { model: answeredBy, modelBackup: answeredBy !== wantedModel } : {}) };
+thread.messages.push(finalAssistantMessage);
+}
+if (isError) {
+  finalAssistantMessage.retryInput = retryInput;
+  finalAssistantMessage.retryMode = retryMode;
+  finalAssistantMessage.retryAttachmentNames = attachmentNames;
+  retryPayloads.set(finalAssistantMessage, attachments);
 }
 if (!statusEl.textContent.includes('failed')) statusEl.textContent = 'Engine: Ready';
 saveState();
