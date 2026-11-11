@@ -22,7 +22,7 @@ shrink("BACKOFF_MAX_MS", 100);
 shrink("MIN_ATTEMPT_MS", 50);
 shrink("TOTAL_BUDGET_MS", 5000);
 source += `
-export { callGemini, callGeminiJson, makeHealth, memCooldowns, redact, errorBody, toOpenAIStream, buildModelChain, readStreamTextLimited };
+export { callGemini, callGeminiJson, callGroqFallback, makeHealth, memCooldowns, redact, errorBody, toOpenAIStream, buildModelChain, readStreamTextLimited };
 export function __reset() { memCooldowns.clear(); kvCooldownCache = { at: 0, map: {} }; }
 `;
 const tmpFile = path.join(here, ".worker.under-test.mjs");
@@ -382,4 +382,43 @@ test("bounded stream reader cancels an oversized upstream response", async () =>
   });
   await assert.rejects(W.readStreamTextLimited(stream, 5), { code: "PAYLOAD_TOO_LARGE" });
   assert.equal(canceled, true);
+});
+
+test("Groq provider fallback sends compatible text chat and returns its stream", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "https://api.groq.com/openai/v1/chat/completions");
+    captured = { headers: init.headers, body: JSON.parse(init.body) };
+    return new Response("data: [DONE]\\n\\n", { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  };
+  const result = await W.callGroqFallback({
+    messages: [{ role: "system", content: "Be concise" }, { role: "user", content: "Hello" }],
+    temperature: 0.4, max_tokens: 120,
+  }, { GROQ_API_KEY: "gsk-test", GROQ_MODEL: "llama-3.3-70b-versatile" });
+  assert.equal(result.model, "llama-3.3-70b-versatile");
+  assert.ok(result.res && result.res.body);
+  assert.equal(captured.headers.Authorization, "Bearer gsk-test");
+  assert.deepEqual(captured.body.messages, [
+    { role: "system", content: "Be concise" }, { role: "user", content: "Hello" },
+  ]);
+  assert.equal(captured.body.stream, true);
+  assert.equal(captured.body.temperature, 0.4);
+  assert.equal(captured.body.max_tokens, 120);
+});
+
+test("Groq provider fallback skips image requests instead of dropping attachments", async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; throw new Error("must not call"); };
+  const result = await W.callGroqFallback({
+    messages: [{ role: "user", content: [{ type: "text", text: "Describe this" }, { type: "image_url", image_url: { url: "data:image/png;base64,AA==" } }] }],
+  }, { GROQ_API_KEY: "gsk-test" });
+  assert.match(result.message, /image or document attachment/);
+  assert.equal(called, false);
+});
+
+test("Groq provider fallback reports upstream errors without leaking credentials", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "invalid request" } }), { status: 400 });
+  const result = await W.callGroqFallback({ messages: [{ role: "user", content: "Hi" }] }, { GROQ_API_KEY: "gsk-test" });
+  assert.equal(result.status, 400);
+  assert.match(result.message, /invalid request/);
 });
