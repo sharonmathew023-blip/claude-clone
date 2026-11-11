@@ -2262,11 +2262,16 @@ document.getElementById('mobileNewChatBtn').addEventListener('click', createNewT
 document.getElementById('topProfileBtn').addEventListener('click', () => document.getElementById('openSettingsBtn').click());
 document.getElementById('sendBtn').addEventListener('click', handleSend);
 
-document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventListener('click',()=>{
- currentComposerMode=button.dataset.mode||'chat';
- document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
- document.getElementById('promptInput').placeholder=({research:'Research a topic with sources...',agent:'Describe a task for ULTRON...',studio:'Describe what to build...',developer:'Ask about code, GitHub or deploys...'})[currentComposerMode]||'Ask ULTRON...';
-}));
+const COMPOSER_MODES = ['chat','research','agent','studio','developer'];
+const COMPOSER_PLACEHOLDERS = {research:'Research a topic with sources...',agent:'Describe a task for ULTRON...',studio:'Describe what to build...',developer:'Ask about code, GitHub or deploys...'};
+function setComposerMode(mode, save) {
+ currentComposerMode = COMPOSER_MODES.includes(mode) ? mode : 'chat';
+ document.querySelectorAll('.mode-toggle-btn').forEach(item=>{const active=item.dataset.mode===currentComposerMode;item.classList.toggle('active',active);item.setAttribute('aria-selected',active?'true':'false');});
+ document.getElementById('promptInput').placeholder=COMPOSER_PLACEHOLDERS[currentComposerMode]||'Ask ULTRON...';
+ if (save) { try { localStorage.setItem('ultron-mode', currentComposerMode); } catch {} }
+}
+document.querySelectorAll('.mode-toggle-btn').forEach(button=>button.addEventListener('click',()=>setComposerMode(button.dataset.mode,true)));
+try { setComposerMode(localStorage.getItem('ultron-mode'), false); } catch {}
 const promptEl = document.getElementById('promptInput');
 promptEl.addEventListener('keydown', e => {
   const isEnter = e.key === 'Enter' || e.keyCode === 13 || (e.keyCode === 229 && e.code === 'Enter');
