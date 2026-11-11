@@ -1,0 +1,67 @@
+<!-- ULTRON mode switcher. Paste the tab bar above your chat, the script near </body>. -->
+<style>
+  .modes { display: flex; gap: 6px; padding: 8px; overflow-x: auto; }
+  .mode-btn {
+    padding: 8px 14px; border: 1px solid #444; border-radius: 999px;
+    background: transparent; color: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .mode-btn.active { background: #7a1f2b; border-color: #7a1f2b; color: #fff; }
+  .sources { margin-top: 8px; font-size: 13px; }
+  .sources a { display: block; color: inherit; opacity: .8; margin: 2px 0; }
+</style>
+
+<div class="modes" id="modes">
+  <button class="mode-btn active" data-mode="chat">Chat</button>
+  <button class="mode-btn" data-mode="research">Research</button>
+  <button class="mode-btn" data-mode="agent">Agent</button>
+  <button class="mode-btn" data-mode="studio">Studio</button>
+  <button class="mode-btn" data-mode="developer">Developer</button>
+</div>
+
+<script>
+  const WORKER_URL = "https://YOUR-WORKER.workers.dev"; // change this
+  let currentMode = localStorage.getItem("ultron-mode") || "chat";
+  const history = []; // { role, content }
+
+  function setMode(mode) {
+    currentMode = mode;
+    try { localStorage.setItem("ultron-mode", mode); } catch {}
+    document.querySelectorAll(".mode-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.mode === mode)
+    );
+  }
+  document.getElementById("modes").addEventListener("click", (e) => {
+    const btn = e.target.closest(".mode-btn");
+    if (btn) setMode(btn.dataset.mode);
+  });
+  setMode(currentMode);
+
+  // Call this from your send button. Returns { text, sources, model }.
+  async function sendToUltron(userText) {
+    history.push({ role: "user", content: userText });
+    const res = await fetch(WORKER_URL + "/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: currentMode, messages: history }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    history.push({ role: "assistant", content: data.text });
+    return data;
+  }
+
+  // Build source links under a reply. Use textContent so nothing gets injected.
+  function renderSources(sources) {
+    const box = document.createElement("div");
+    box.className = "sources";
+    sources.forEach((s, i) => {
+      const a = document.createElement("a");
+      a.href = s.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = `[${i + 1}] ${s.title || s.url}`;
+      box.appendChild(a);
+    });
+    return box;
+  }
+</script>
